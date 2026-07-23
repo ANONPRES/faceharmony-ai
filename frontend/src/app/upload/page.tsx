@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ImageUploader } from "@/components/ImageUploader";
 import { GlassCard } from "@/components/GlassCard";
-import { analyzeFace, fileToDataUrl } from "@/lib/api";
+import { analyzeFace, compressImageForStorage } from "@/lib/api";
 import { addHistoryEntry } from "@/lib/history";
 import { saveLatestAnalysis } from "@/lib/session";
 
@@ -15,16 +15,25 @@ export default function UploadPage() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
 
-  const handleAnalyze = async (file: File, previewUrl: string) => {
+  const handleAnalyze = async (file: File, _previewUrl: string) => {
     setBusy(true);
     try {
       const result = await analyzeFace(file);
-      const dataUrl = previewUrl.startsWith("blob:")
-        ? await fileToDataUrl(file)
-        : previewUrl;
-      saveLatestAnalysis(dataUrl, result);
-      addHistoryEntry(dataUrl, result);
+      // Keep storage payloads tiny — gallery shots are often 5–15MB.
+      const preview = await compressImageForStorage(file, {
+        maxEdge: 960,
+        quality: 0.58,
+      });
+      const thumb = await compressImageForStorage(file, {
+        maxEdge: 360,
+        quality: 0.55,
+      });
+      await saveLatestAnalysis(preview, result);
+      addHistoryEntry(thumb, result);
       router.push("/results");
+    } catch (err) {
+      console.error(err);
+      alert(err instanceof Error ? err.message : "Анализ не удался.");
     } finally {
       setBusy(false);
     }

@@ -33,17 +33,28 @@ function ResultsContent() {
   });
 
   useEffect(() => {
-    if (historyId) {
-      const entry = getHistoryEntry(historyId);
-      if (entry) {
-        setImageUrl(entry.imageDataUrl);
-        setResult(entry.result);
-        return;
+    let cancelled = false;
+    const load = async () => {
+      if (historyId) {
+        const entry = getHistoryEntry(historyId);
+        if (entry) {
+          if (!cancelled) {
+            setImageUrl(entry.imageDataUrl);
+            setResult(entry.result);
+          }
+          return;
+        }
       }
-    }
-    const latest = loadLatestAnalysis();
-    setImageUrl(latest.imageDataUrl);
-    setResult(latest.result);
+      const latest = await loadLatestAnalysis();
+      if (!cancelled) {
+        setImageUrl(latest.imageDataUrl);
+        setResult(latest.result);
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
   }, [historyId]);
 
   const cards = useMemo(() => {
@@ -68,7 +79,7 @@ function ResultsContent() {
     return order.map((key) => result.metrics[key]).filter(Boolean);
   }, [result]);
 
-  if (!result || !imageUrl) {
+  if (!result) {
     return (
       <GlassCard className="mx-auto max-w-lg text-center">
         <h1 className="font-[family-name:var(--font-display)] text-2xl text-white">
@@ -86,6 +97,8 @@ function ResultsContent() {
       </GlassCard>
     );
   }
+
+  const previewUrl = imageUrl ?? "";
 
   const poseHint =
     result.pose === "profile"
@@ -157,7 +170,7 @@ function ResultsContent() {
             Оверлей лица
           </h2>
           <OverlayControls toggles={toggles} onChange={setToggles} />
-          <FacialOverlay imageUrl={imageUrl} result={result} toggles={toggles} />
+          <FacialOverlay imageUrl={previewUrl} result={result} toggles={toggles} />
         </GlassCard>
       </div>
 
@@ -168,7 +181,7 @@ function ResultsContent() {
       </div>
 
       <MeasurementsPanel
-        imageUrl={imageUrl}
+        imageUrl={previewUrl}
         measurements={result.measurements ?? []}
       />
 
