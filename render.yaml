@@ -1,11 +1,13 @@
 # FaceHarmony AI — Render free blueprint
-# After pushing to GitHub: Render Dashboard → New → Blueprint → select this repo
+# New → Blueprint → this repo
+# If you created a service manually: set Root Directory to backend or frontend!
 
 services:
   - type: web
     name: faceharmony-api
     runtime: docker
     rootDir: backend
+    dockerfilePath: Dockerfile
     plan: free
     region: frankfurt
     healthCheckPath: /health
@@ -17,6 +19,7 @@ services:
     name: faceharmony-web
     runtime: docker
     rootDir: frontend
+    dockerfilePath: Dockerfile
     plan: free
     region: frankfurt
     healthCheckPath: /
