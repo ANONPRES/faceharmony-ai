@@ -1,0 +1,32 @@
+# FaceHarmony AI — Render free blueprint
+# After pushing to GitHub: Render Dashboard → New → Blueprint → select this repo
+
+services:
+  - type: web
+    name: faceharmony-api
+    runtime: docker
+    rootDir: backend
+    plan: free
+    region: frankfurt
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: "8000"
+
+  - type: web
+    name: faceharmony-web
+    runtime: docker
+    rootDir: frontend
+    plan: free
+    region: frankfurt
+    healthCheckPath: /
+    envVars:
+      - key: PORT
+        value: "3000"
+      - key: NEXT_PUBLIC_API_URL
+        value: /fh-api
+      - key: BACKEND_ORIGIN
+        fromService:
+          name: faceharmony-api
+          type: web
+          property: hostport
