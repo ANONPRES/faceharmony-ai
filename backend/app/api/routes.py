@@ -55,6 +55,16 @@ async def analyze_face(file: UploadFile = File(...)) -> AnalysisResponse:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except FileNotFoundError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Детектор лиц не смог запуститься: {exc}",
+        ) from exc
+    except Exception as exc:  # noqa: BLE001 — surface unexpected analyze failures to client
+        raise HTTPException(
+            status_code=500,
+            detail=f"Анализ не удался: {exc}",
+        ) from exc
 
     calculator = MetricsCalculator(landmarks, width, height, bgr_image=image)
     result = calculator.calculate_all()
