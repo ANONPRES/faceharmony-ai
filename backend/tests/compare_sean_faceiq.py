@@ -31,7 +31,7 @@ def main() -> None:
     print(f"{'metric':22s} {'ours':>8} {'fiq':>8} {'dVal':>7}  {'sc':>5} {'fiqSc':>5} {'dSc':>5}  note")
     print("-" * 90)
     for mid, ref in SEAN_FACEIQ.items():
-        if mid == "harmony_faceiq":
+        if mid.startswith("harmony"):
             continue
         m = ours.get(mid)
         if not m:
@@ -52,15 +52,26 @@ def main() -> None:
         )
 
     print()
+    h = result["pillars"].get("harmony")
     print(
-        f"Our pillars H/A/D/F: "
-        f"{result['pillars']['harmony']/10:.1f}/"
-        f"{result['pillars']['angularity']/10:.1f}/"
-        f"{result['pillars']['dimorphism']/10:.1f}/"
-        f"{result['pillars']['features']/10:.1f}  "
-        f"overall={result['overall']:.1f}"
+        f"Our Harmony: {h/10:.1f}/10  overall={result['overall']:.1f}  "
+        f"(A/D/F Coming Soon like FaceIQ)"
     )
-    print(f"FaceIQ Harmony only: {SEAN_FACEIQ['harmony_faceiq']['score_10']:.2f}/10 (A/D/F Coming Soon)")
+    print(
+        f"FaceIQ: overall {SEAN_FACEIQ['harmony_faceiq']['score_10']:.2f} "
+        f"/ front {SEAN_FACEIQ['harmony_front']['score_10']:.1f} "
+        f"(compare front without profile)"
+    )
+
+    # Category averages (FaceIQ-style groups)
+    from collections import defaultdict
+
+    by_cat: dict[str, list[float]] = defaultdict(list)
+    for m in result["measurements"]:
+        by_cat[m["category"]].append(float(m["score_10"]))
+    print("\nCategory averages:")
+    for cat, scores in by_cat.items():
+        print(f"  {cat:16s} {sum(scores)/len(scores):.1f}/10  (n={len(scores)})")
 
 
 if __name__ == "__main__":

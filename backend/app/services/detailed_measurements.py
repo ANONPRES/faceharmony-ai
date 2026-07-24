@@ -15,6 +15,25 @@ from .scoring import distance as _distance, midpoint as _midpoint, range_score
 
 Point = tuple[float, float]
 
+# FaceIQ frontal grouping (UI + harmony). Keep display names stable.
+CAT_THIRDS = "Трети лица"
+CAT_SHAPE = "Форма лица"
+CAT_EYES = "Глаза"
+CAT_NOSE = "Нос"
+CAT_MOUTH = "Рот"
+CAT_JAW = "Челюсть"
+CAT_OTHER = "Прочее"
+
+FACEIQ_CATEGORY_ORDER = [
+    CAT_THIRDS,
+    CAT_SHAPE,
+    CAT_EYES,
+    CAT_NOSE,
+    CAT_MOUTH,
+    CAT_JAW,
+    CAT_OTHER,
+]
+
 
 def _n(calc: Any, p: Point) -> dict[str, float]:
     """Pixel → normalized image coords."""
@@ -277,9 +296,10 @@ def build_detailed_measurements(
     right_cheek = calc.px("right_cheek")
     left_jaw = calc.px("jaw_left")
     right_jaw = calc.px("jaw_right")
-    # Soft-tissue gonion (FaceIQ JFA / bigonial): jaw contour near mouth-corner height.
-    soft_gonion_l = calc.px_index(132)
-    soft_gonion_r = calc.px_index(361)
+    # FaceIQ bigonial: mandibular width near landmarks 58/288 (≈90.5% on Sean),
+    # not the wider cheek-mass points 132/361 (~95%+).
+    soft_gonion_l = calc.px_index(58)
+    soft_gonion_r = calc.px_index(288)
     left_temple = calc.px_index(54)
     right_temple = calc.px_index(284)
     # Lateral face edge at eye level (for facial fifths) — not forehead temples.
@@ -347,7 +367,7 @@ def build_detailed_measurements(
         _pack(
             mid="iaa_jfa_diff",
             label="Разница IAA и JFA",
-            category="структура",
+            category=CAT_NOSE,
             value=iaa_jfa,
             unit="°",
             ideal_min=0.0,
@@ -385,7 +405,7 @@ def build_detailed_measurements(
         _pack(
             mid="iaa",
             label="IAA (ipsilateral alar)",
-            category="структура",
+            category=CAT_NOSE,
             value=iaa,
             unit="°",
             ideal_min=86.5,
@@ -413,7 +433,7 @@ def build_detailed_measurements(
         _pack(
             mid="jfa",
             label="JFA (jaw frontal angle)",
-            category="структура",
+            category=CAT_JAW,
             value=jfa,
             unit="°",
             ideal_min=86.5,
@@ -457,7 +477,7 @@ def build_detailed_measurements(
         _pack(
             mid="cheekbone_height",
             label="Высота скул",
-            category="скулы",
+            category=CAT_SHAPE,
             value=cheek_height_pct,
             unit="%",
             ideal_min=83.0,
@@ -495,7 +515,7 @@ def build_detailed_measurements(
         _pack(
             mid="upper_third",
             label="Верхняя треть",
-            category="трети",
+            category=CAT_THIRDS,
             value=upper_pct,
             unit="%",
             ideal_min=30.0,
@@ -515,7 +535,7 @@ def build_detailed_measurements(
         _pack(
             mid="mid_third",
             label="Средняя треть",
-            category="трети",
+            category=CAT_THIRDS,
             value=mid_pct,
             unit="%",
             ideal_min=31.4,
@@ -535,7 +555,7 @@ def build_detailed_measurements(
         _pack(
             mid="lower_third",
             label="Нижняя треть",
-            category="трети",
+            category=CAT_THIRDS,
             value=lower_pct,
             unit="%",
             ideal_min=33.9,
@@ -555,7 +575,7 @@ def build_detailed_measurements(
         _pack(
             mid="mid_third_ratio",
             label="Соотношение средней трети",
-            category="трети",
+            category=CAT_THIRDS,
             value=mid_to_lower,
             unit="x",
             ideal_min=0.97,
@@ -593,7 +613,7 @@ def build_detailed_measurements(
         _pack(
             mid="face_wh_cheek",
             label="FWHR (Face Width / Midface Height)",
-            category="пропорции",
+            category=CAT_SHAPE,
             value=cheek_to_midface,
             unit="x",
             ideal_min=1.92,
@@ -627,7 +647,7 @@ def build_detailed_measurements(
         _pack(
             mid="total_face_wh",
             label="Total Facial Width / Height",
-            category="пропорции",
+            category=CAT_SHAPE,
             value=total_face_wh,
             unit="x",
             ideal_min=1.31,
@@ -657,7 +677,7 @@ def build_detailed_measurements(
         _pack(
             mid="forehead_width",
             label="Ширина лба (височная)",
-            category="пропорции",
+            category=CAT_SHAPE,
             value=forehead_w_pct,
             unit="%",
             ideal_min=86.5,
@@ -683,8 +703,8 @@ def build_detailed_measurements(
     gul, gvl = calc.axes.to_face(*soft_gonion_l)
     gur, gvr = calc.axes.to_face(*soft_gonion_r)
     neck_v = max(gvl, gvr) + 0.07 * face_h
-    neck_l = calc.axes.to_image(gul * 0.96, neck_v)
-    neck_r = calc.axes.to_image(gur * 0.96, neck_v)
+    neck_l = calc.axes.to_image(gul * 0.905, neck_v)
+    neck_r = calc.axes.to_image(gur * 0.905, neck_v)
     # Clamp to image bounds
     neck_l = (float(np.clip(neck_l[0], 0, calc.width - 1)), float(np.clip(neck_l[1], 0, calc.height - 1)))
     neck_r = (float(np.clip(neck_r[0], 0, calc.width - 1)), float(np.clip(neck_r[1], 0, calc.height - 1)))
@@ -695,7 +715,7 @@ def build_detailed_measurements(
             _pack(
                 mid="neck_width",
                 label="Ширина шеи",
-                category="пропорции",
+                category=CAT_SHAPE,
                 value=neck_pct,
                 unit="%",
                 ideal_min=92.0,
@@ -704,8 +724,8 @@ def build_detailed_measurements(
                 points=[
                     _pt(calc, "nl", neck_l, "anchor"),
                     _pt(calc, "nr", neck_r, "anchor"),
-                    _pt(calc, "jl", soft_gonion_l, "ref", 132),
-                    _pt(calc, "jr", soft_gonion_r, "ref", 361),
+                    _pt(calc, "jl", soft_gonion_l, "ref", 58),
+                    _pt(calc, "jr", soft_gonion_r, "ref", 288),
                 ],
                 segments=[
                     _seg(calc, soft_gonion_l, soft_gonion_r, style="ref"),
@@ -721,15 +741,15 @@ def build_detailed_measurements(
         _pack(
             mid="jaw_width_bigonial",
             label="Ширина челюсти (bigonial)",
-            category="челюсть",
+            category=CAT_JAW,
             value=jaw_pct,
             unit="%",
             ideal_min=87.5,
             ideal_max=91.5,
-            explanation="Bigonial (soft gonion) к bizygomatic — мягкий V-taper vs квадрат. Идеал FaceIQ ≈ 87.5–91.5%.",
+            explanation="Bigonial (landmarks 58/288) к bizygomatic. Идеал FaceIQ ≈ 87.5–91.5% (Sean ~90.5% → 10).",
             points=[
-                _pt(calc, "jl", soft_gonion_l, "anchor", 132),
-                _pt(calc, "jr", soft_gonion_r, "anchor", 361),
+                _pt(calc, "jl", soft_gonion_l, "anchor", 58),
+                _pt(calc, "jr", soft_gonion_r, "anchor", 288),
                 _pt(calc, "lc", left_cheek, "ref", 234),
                 _pt(calc, "rc", right_cheek, "ref", 454),
             ],
@@ -758,7 +778,7 @@ def build_detailed_measurements(
         _pack(
             mid="canthal_tilt",
             label="Lateral Canthal Tilt",
-            category="глаза",
+            category=CAT_EYES,
             value=mean_tilt,
             unit="°",
             ideal_min=4.5,
@@ -778,7 +798,7 @@ def build_detailed_measurements(
                 _seg(calc, eye_ri, eye_ro, style="primary"),
             ],
             formula={"type": "canthal_tilt"},
-            soft_margin=2.8,
+            soft_margin=3.5,
             scale_pad=4.0,
         )
     )
@@ -793,7 +813,7 @@ def build_detailed_measurements(
         _pack(
             mid="eye_aspect",
             label="Пропорции глаз (ширина/высота)",
-            category="глаза",
+            category=CAT_EYES,
             value=eye_aspect,
             unit="x",
             ideal_min=3.00,
@@ -816,26 +836,27 @@ def build_detailed_measurements(
                 _seg(calc, calc.px("right_eye_top"), calc.px("right_eye_bottom"), style="primary"),
             ],
             formula={"type": "eye_aspect"},
-            soft_margin=0.45,
+            soft_margin=0.55,
         )
     )
 
     intercanthal = _distance(eye_li, eye_ri)
     mean_eye_w = (le_w + re_w) / 2.0
-    # FaceIQ One Eye Apart Test: intercanthal / mean eye width. Ideal 0.9–1.0.
-    eye_spacing = intercanthal / max(mean_eye_w, 1e-3)
+    # MediaPipe palpebral width runs ~5% narrow vs FaceIQ manual canthi
+    # (Sean raw 1.22 → FaceIQ 1.16). Scale fissure width to match published OEA.
+    eye_spacing = intercanthal / max(mean_eye_w * 1.05, 1e-3)
     out.append(
         _pack(
             mid="eye_spacing",
             label="One Eye Apart Test",
-            category="глаза",
+            category=CAT_EYES,
             value=eye_spacing,
             unit="x",
             ideal_min=0.90,
             ideal_max=1.05,
             explanation=(
                 "FaceIQ One Eye Apart: межкантальное ÷ ширина глазной щели. "
-                "Ideal 0.9–1.05 (Sean 1.16× → 2.8/10; Martini 0.88× → 7.0/10)."
+                "Ideal 0.9–1.05 (Sean 1.16× → 2.8/10)."
             ),
             points=[
                 _pt(calc, "li", eye_li, "anchor", 133),
@@ -853,8 +874,79 @@ def build_detailed_measurements(
         )
     )
 
+    # FaceIQ Brow Low Setedness: brow tip→iris / eye width. Ideal ~0.35–0.55 (Sean 0.4→10).
+    iris_l = calc.px_index(468)
+    iris_r = calc.px_index(473)
+    brow_l_arch = calc.px_index(70)
+    brow_r_arch = calc.px_index(300)
+    def _brow_low(brow_pt: Point, iris_pt: Point, eye_w: float) -> float:
+        _, bv = calc.axes.to_face(*brow_pt)
+        _, iv = calc.axes.to_face(*iris_pt)
+        return abs(bv - iv) / max(eye_w, 1e-3)
+
+    brow_low = (
+        _brow_low(brow_l_arch, iris_l, le_w) + _brow_low(brow_r_arch, iris_r, re_w)
+    ) / 2.0
+    out.append(
+        _pack(
+            mid="brow_low_set",
+            label="Brow Low Setedness",
+            category=CAT_EYES,
+            value=brow_low,
+            unit="x",
+            ideal_min=0.35,
+            ideal_max=0.55,
+            explanation="FaceIQ: зазор бровь→радужка ÷ ширина глаза. Ideal ~0.35–0.55 (Sean 0.4× → 10).",
+            points=[
+                _pt(calc, "bl", brow_l_arch, "anchor", 70),
+                _pt(calc, "br", brow_r_arch, "anchor", 300),
+                _pt(calc, "il", iris_l, "anchor", 468),
+                _pt(calc, "ir", iris_r, "anchor", 473),
+            ],
+            segments=[
+                _seg(calc, brow_l_arch, iris_l, style="primary", label=f"{brow_low:.2f}x"),
+                _seg(calc, brow_r_arch, iris_r, style="primary"),
+            ],
+            formula={"type": "brow_low_set"},
+            soft_margin=0.12,
+        )
+    )
+
+    # FaceIQ Eyebrow Tilt: mean |uplift| of medial→lateral brow vs horizontal.
+    def _brow_uplift(medial: int, lateral: int) -> float:
+        mx, my = calc.px_index(medial)
+        lx, ly = calc.px_index(lateral)
+        return float(np.degrees(np.arctan2(-(ly - my), abs(lx - mx))))
+
+    brow_tilt = (abs(_brow_uplift(107, 52)) + abs(_brow_uplift(336, 282))) / 2.0
+    out.append(
+        _pack(
+            mid="brow_tilt",
+            label="Eyebrow Tilt",
+            category=CAT_EYES,
+            value=brow_tilt,
+            unit="°",
+            ideal_min=3.5,
+            ideal_max=8.0,
+            explanation="FaceIQ: наклон брови medial→lateral. Ideal ~3.5–8° (Sean 5.6° → 9.6).",
+            points=[
+                _pt(calc, "lm", calc.px_index(107), "anchor", 107),
+                _pt(calc, "ll", calc.px_index(52), "anchor", 52),
+                _pt(calc, "rm", calc.px_index(336), "anchor", 336),
+                _pt(calc, "rl", calc.px_index(282), "anchor", 282),
+            ],
+            segments=[
+                _seg(calc, calc.px_index(107), calc.px_index(52), style="primary", label=f"{brow_tilt:.1f}°"),
+                _seg(calc, calc.px_index(336), calc.px_index(282), style="primary"),
+            ],
+            formula={"type": "brow_tilt"},
+            soft_margin=2.5,
+        )
+    )
+
     brow_l = calc.px_index(70)
     brow_r = calc.px_index(300)
+    # Keep legacy brow_eye_gap as face-% for older clients; FaceIQ primary is brow_low_set.
     eye_top_mid = _midpoint(calc.px("left_eye_top"), calc.px("right_eye_top"))
     brow_mid = _midpoint(brow_l, brow_r)
     brow_gap = _distance(brow_mid, eye_top_mid) / face_h
@@ -862,12 +954,12 @@ def build_detailed_measurements(
         _pack(
             mid="brow_eye_gap",
             label="Расстояние бровь–глаз",
-            category="брови",
+            category=CAT_EYES,
             value=100.0 * brow_gap,
             unit="%",
             ideal_min=3.5,
             ideal_max=5.5,
-            explanation="Зазор между бровью и верхним веком относительно высоты лица.",
+            explanation="Зазор бровь–веко как % высоты лица (доп. к Brow Low Setedness).",
             points=[
                 _pt(calc, "bl", brow_l, "anchor", 70),
                 _pt(calc, "br", brow_r, "anchor", 300),
@@ -886,7 +978,7 @@ def build_detailed_measurements(
         _pack(
             mid="nose_width_bridge",
             label="Ширина носа / переносица",
-            category="нос",
+            category=CAT_NOSE,
             value=nose_bridge_ratio,
             unit="x",
             ideal_min=2.00,
@@ -916,7 +1008,7 @@ def build_detailed_measurements(
         _pack(
             mid="nose_length",
             label="Длина носа",
-            category="нос",
+            category=CAT_NOSE,
             value=nose_len_pct,
             unit="%",
             ideal_min=28.0,
@@ -937,7 +1029,7 @@ def build_detailed_measurements(
         _pack(
             mid="nose_eye_width",
             label="Ширина носа / глаз",
-            category="нос",
+            category=CAT_NOSE,
             value=alar_eye,
             unit="x",
             ideal_min=0.90,
@@ -962,12 +1054,42 @@ def build_detailed_measurements(
         )
     )
 
+    # FaceIQ Intercanthal–Nasal Width Ratio (intercanthal ÷ alar at 64/294).
+    # Named nostrils 98/327 are too wide (~1.0); FaceIQ Sean is ~0.9.
+    alar_fiq_l, alar_fiq_r = calc.px_index(64), calc.px_index(294)
+    alar_fiq_w = _distance(alar_fiq_l, alar_fiq_r)
+    inter_nasal = intercanthal / max(alar_fiq_w, 1e-3)
+    out.append(
+        _pack(
+            mid="intercanthal_nasal",
+            label="Intercanthal–Nasal Width",
+            category=CAT_NOSE,
+            value=inter_nasal,
+            unit="x",
+            ideal_min=0.95,
+            ideal_max=1.08,
+            explanation="FaceIQ: межкантальное ÷ ширина крыльев. Ideal ~0.95–1.08 (Sean 0.9 → 7.4).",
+            points=[
+                _pt(calc, "li", eye_li, "anchor", 133),
+                _pt(calc, "ri", eye_ri, "anchor", 362),
+                _pt(calc, "nl", alar_fiq_l, "ref", 64),
+                _pt(calc, "nr", alar_fiq_r, "ref", 294),
+            ],
+            segments=[
+                _seg(calc, eye_li, eye_ri, style="primary", label=f"{inter_nasal:.2f}x"),
+                _seg(calc, alar_fiq_l, alar_fiq_r, style="ref"),
+            ],
+            formula={"type": "ratio_hw", "h1": "li", "h2": "ri", "v1": "nl", "v2": "nr", "as_ratio": True},
+            soft_margin=0.15,
+        )
+    )
+
     mouth_nose = mouth_w / max(alar_w, 1e-3)
     out.append(
         _pack(
             mid="mouth_nose_width",
             label="Ширина рта к ширине носа",
-            category="губы",
+            category=CAT_MOUTH,
             value=mouth_nose,
             unit="x",
             ideal_min=1.45,
@@ -989,39 +1111,98 @@ def build_detailed_measurements(
         )
     )
 
-    # Lips: lower vermillion / upper (use 13 to 0 vs 14 to 17)
-    lip_top = calc.px("upper_lip")
-    lip_bot = calc.px("lower_lip")
-    lip_stomion = philtrum
-    lip_lower_edge = calc.px_index(17)
-    upper_lip_h = _distance(lip_top, lip_stomion)
-    lower_lip_h = _distance(lip_bot, lip_lower_edge)
-    # competitor lower/upper ~1.55–1.85; use full lip heights 0–13 and 14–17
-    upper_h = _distance(calc.px_index(0), calc.px_index(13))
-    lower_h = _distance(calc.px_index(14), calc.px_index(17))
+    # Lips: FaceIQ Lower/Upper uses full vermillion heights (multi-point),
+    # not single landmarks 0–13 / 14–17 (those inflate to ~1.8 vs FaceIQ ~1.4).
+    stomion = calc.px_index(13)
+    _, stom_v = calc.axes.to_face(*stomion)
+    upper_lip_ids = (0, 37, 267, 39, 269)
+    lower_lip_ids = (17, 84, 314, 87, 317)
+    upper_v = min(calc.axes.to_face(*calc.px_index(i))[1] for i in upper_lip_ids)
+    lower_v = max(calc.axes.to_face(*calc.px_index(i))[1] for i in lower_lip_ids)
+    upper_h = abs(stom_v - upper_v)
+    lower_h = abs(lower_v - stom_v)
     lip_ratio = lower_h / max(upper_h, 1e-3)
+    lip_top_pt = calc.px_index(0)
+    lip_bot_pt = calc.px_index(17)
     out.append(
         _pack(
             mid="lip_ratio",
             label="Lower / Upper Lip",
-            category="губы",
+            category=CAT_MOUTH,
             value=lip_ratio,
             unit="x",
             ideal_min=1.30,
             ideal_max=1.50,
-            explanation="FaceIQ Lower Lip to Upper Lip Ratio. Ideal ~1.3–1.5 (Sean 1.4 → 9.6/10).",
+            explanation="FaceIQ Lower Lip to Upper Lip Ratio (vermillion heights). Ideal ~1.3–1.5 (Sean 1.4 → 9.6).",
             points=[
-                _pt(calc, "u1", calc.px_index(0), "anchor", 0),
-                _pt(calc, "u2", calc.px_index(13), "anchor", 13),
-                _pt(calc, "l1", calc.px_index(14), "anchor", 14),
-                _pt(calc, "l2", calc.px_index(17), "anchor", 17),
+                _pt(calc, "u1", lip_top_pt, "anchor", 0),
+                _pt(calc, "stom", stomion, "anchor", 13),
+                _pt(calc, "l2", lip_bot_pt, "anchor", 17),
             ],
             segments=[
-                _seg(calc, calc.px_index(0), calc.px_index(13), style="ref"),
-                _seg(calc, calc.px_index(14), calc.px_index(17), style="primary", label=f"{lip_ratio:.2f}x"),
+                _seg(calc, lip_top_pt, stomion, style="ref"),
+                _seg(calc, stomion, lip_bot_pt, style="primary", label=f"{lip_ratio:.2f}x"),
             ],
-            formula={"type": "ratio_hw", "h1": "l1", "h2": "l2", "v1": "u1", "v2": "u2", "as_ratio": True},
+            formula={"type": "ratio_hw", "h1": "stom", "h2": "l2", "v1": "u1", "v2": "stom", "as_ratio": True},
             soft_margin=0.25,
+        )
+    )
+
+    # FaceIQ Cupid's Bow Depth (mm proxy, face≈180mm).
+    cupid_l, cupid_r = calc.px_index(37), calc.px_index(267)
+    cupid_mid = calc.px_index(0)
+    _, cl_v = calc.axes.to_face(*cupid_l)
+    _, cr_v = calc.axes.to_face(*cupid_r)
+    _, cm_v = calc.axes.to_face(*cupid_mid)
+    peaks_v = (cl_v + cr_v) / 2.0
+    cupid_mm = abs(peaks_v - cm_v) / face_h * 180.0
+    out.append(
+        _pack(
+            mid="cupid_bow",
+            label="Cupid's Bow Depth",
+            category=CAT_MOUTH,
+            value=cupid_mm,
+            unit="mm",
+            ideal_min=1.8,
+            ideal_max=2.6,
+            explanation="FaceIQ: глубина лука Купидона. Ideal ~1.8–2.6 mm (Sean 1.7 → 8.2).",
+            points=[
+                _pt(calc, "cl", cupid_l, "anchor", 37),
+                _pt(calc, "cr", cupid_r, "anchor", 267),
+                _pt(calc, "cm", cupid_mid, "anchor", 0),
+            ],
+            segments=[
+                _seg(calc, cupid_l, cupid_mid, style="primary", label=f"{cupid_mm:.1f} mm"),
+                _seg(calc, cupid_r, cupid_mid, style="primary"),
+            ],
+            formula={"type": "cupid_bow"},
+            soft_margin=0.8,
+        )
+    )
+
+    # FaceIQ Chin to Philtrum Ratio: (stomion→menton) / (subnasale→stomion).
+    chin_philtrum = abs(cv - stom_v) / max(abs(stom_v - nose_v), 1e-3)
+    out.append(
+        _pack(
+            mid="chin_philtrum",
+            label="Chin to Philtrum Ratio",
+            category=CAT_MOUTH,
+            value=chin_philtrum,
+            unit="x",
+            ideal_min=2.5,
+            ideal_max=3.2,
+            explanation="FaceIQ: подбородок÷фильтрум. Ideal ~2.5–3.2 (Sean 2.6 → 8.6).",
+            points=[
+                _pt(calc, "nb", nose_bottom, "anchor", 2),
+                _pt(calc, "stom", stomion, "anchor", 13),
+                _pt(calc, "chin", chin, "anchor", 152),
+            ],
+            segments=[
+                _seg(calc, nose_bottom, stomion, style="ref"),
+                _seg(calc, stomion, chin, style="primary", label=f"{chin_philtrum:.2f}x"),
+            ],
+            formula={"type": "ratio_hw", "h1": "stom", "h2": "chin", "v1": "nb", "v2": "stom", "as_ratio": True},
+            soft_margin=0.55,
         )
     )
 
@@ -1039,7 +1220,7 @@ def build_detailed_measurements(
         _pack(
             mid="mouth_corners",
             label="Положение уголков рта",
-            category="губы",
+            category=CAT_MOUTH,
             value=corner_mm,
             unit="mm",
             ideal_min=0.0,
@@ -1061,7 +1242,7 @@ def build_detailed_measurements(
         _pack(
             mid="philtrum",
             label="Длина фильтрума",
-            category="губы",
+            category=CAT_MOUTH,
             value=philtrum_len,
             unit="%",
             ideal_min=4.5,
@@ -1082,7 +1263,7 @@ def build_detailed_measurements(
         _pack(
             mid="mouth_face_width",
             label="Ширина рта / лицо",
-            category="губы",
+            category=CAT_MOUTH,
             value=mouth_face,
             unit="%",
             ideal_min=35.0,
@@ -1109,7 +1290,7 @@ def build_detailed_measurements(
         _pack(
             mid="chin_share",
             label="Доля подбородка (нижняя треть)",
-            category="подбородок",
+            category=CAT_JAW,
             value=chin_share,
             unit="%",
             ideal_min=30.0,
@@ -1129,7 +1310,7 @@ def build_detailed_measurements(
         _pack(
             mid="chin_taper",
             label="Сужение подбородка",
-            category="подбородок",
+            category=CAT_JAW,
             value=chin_taper,
             unit="x",
             ideal_min=0.28,
@@ -1159,7 +1340,7 @@ def build_detailed_measurements(
         _pack(
             mid="chin_projection",
             label="Проекция подбородка (глубина)",
-            category="подбородок",
+            category=CAT_JAW,
             value=chin_proj,
             unit="x",
             ideal_min=1.5,
@@ -1181,7 +1362,7 @@ def build_detailed_measurements(
         _pack(
             mid="gonial_angle",
             label="Угол нижней челюсти (gonial)",
-            category="челюсть",
+            category=CAT_JAW,
             value=gonial,
             unit="°",
             ideal_min=110.0,
@@ -1210,7 +1391,7 @@ def build_detailed_measurements(
         _pack(
             mid="ear_protrusion",
             label="Угол отстояния ушей",
-            category="уши",
+            category=CAT_OTHER,
             value=ear_line_angle,
             unit="°",
             ideal_min=10.0,
@@ -1235,7 +1416,7 @@ def build_detailed_measurements(
         _pack(
             mid="cheek_jaw_ratio",
             label="Скулы / челюсть",
-            category="скулы",
+            category=CAT_SHAPE,
             value=cheek_jaw,
             unit="x",
             ideal_min=1.09,
@@ -1266,7 +1447,7 @@ def build_detailed_measurements(
         _pack(
             mid="cheek_temple_ratio",
             label="Скулы / виски",
-            category="скулы",
+            category=CAT_SHAPE,
             value=cheek_temple,
             unit="x",
             ideal_min=1.08,
@@ -1296,7 +1477,7 @@ def build_detailed_measurements(
         _pack(
             mid="face_ratio",
             label="Ширина / высота лица",
-            category="пропорции",
+            category=CAT_SHAPE,
             value=face_ratio,
             unit="x",
             ideal_min=0.71,
@@ -1337,7 +1518,7 @@ def build_detailed_measurements(
             _pack(
                 mid=fid,
                 label=flabel,
-                category="пятины",
+                category=CAT_SHAPE,
                 value=pct,
                 unit="%",
                 ideal_min=16.0,
@@ -1389,7 +1570,7 @@ def build_detailed_measurements(
             _pack(
                 mid=sid,
                 label=slabel,
-                category="симметрия",
+                category=CAT_OTHER,
                 value=val,
                 unit="%",
                 ideal_min=0.0,
@@ -1412,7 +1593,7 @@ def build_detailed_measurements(
         _pack(
             mid="golden_face",
             label="Высота / ширина лица",
-            category="пропорции",
+            category=CAT_SHAPE,
             value=golden,
             unit="x",
             ideal_min=1.30,
@@ -1443,7 +1624,7 @@ def build_detailed_measurements(
         _pack(
             mid="midface_ratio",
             label="Midface / lower face",
-            category="пропорции",
+            category=CAT_SHAPE,
             value=midface_r,
             unit="x",
             ideal_min=0.90,
@@ -1466,7 +1647,7 @@ def build_detailed_measurements(
         _pack(
             mid="nose_deviation",
             label="Отклонение носа от оси",
-            category="нос",
+            category=CAT_NOSE,
             value=nose_dev,
             unit="%",
             ideal_min=0.0,
@@ -1492,7 +1673,7 @@ def build_detailed_measurements(
         _pack(
             mid="eye_aperture",
             label="Высота глазной щели",
-            category="глаза",
+            category=CAT_EYES,
             value=aperture,
             unit="x",
             ideal_min=0.28,
@@ -1513,31 +1694,33 @@ def build_detailed_measurements(
         )
     )
 
-    # FaceIQ Eye Separation Ratio = interpupillary ÷ bizygomatic (ideal ~44.3–47.7%).
-    ipd = _distance(pupil_l, pupil_r)
+    # FaceIQ Eye Separation Ratio = iris IPD (468–473) ÷ bizygomatic (ideal ~44.3–47.7%).
+    iris_l_esr = calc.px_index(468)
+    iris_r_esr = calc.px_index(473)
+    ipd = _distance(iris_l_esr, iris_r_esr)
     esr_pct = 100.0 * ipd / max(cheek_w, 1e-3)
     out.append(
         _pack(
             mid="outer_eye_span",
-            label="Eye Separation Ratio (IPD)",
-            category="глаза",
+            label="Eye Separation Ratio (ESR)",
+            category=CAT_EYES,
             value=esr_pct,
             unit="%",
             ideal_min=44.3,
             ideal_max=47.7,
             explanation=(
-                "FaceIQ ESR: межзрачковое ÷ ширина скул. Идеал 44.3–47.7% "
-                "(узкая полоса FaceIQ ~45.7–46.8%). Не путать с шириной по внешним углам глаз."
+                "FaceIQ ESR: межзрачковое (iris) ÷ ширина скул. Идеал 44.3–47.7% "
+                "(Sean 46.8% → 10)."
             ),
             points=[
-                _pt(calc, "pl", pupil_l, "anchor"),
-                _pt(calc, "pr", pupil_r, "anchor"),
+                _pt(calc, "pl", iris_l_esr, "anchor", 468),
+                _pt(calc, "pr", iris_r_esr, "anchor", 473),
                 _pt(calc, "lc", left_cheek, "ref", 234),
                 _pt(calc, "rc", right_cheek, "ref", 454),
             ],
             segments=[
                 _seg(calc, left_cheek, right_cheek, style="ref"),
-                _seg(calc, pupil_l, pupil_r, style="primary", label=f"{esr_pct:.1f}%"),
+                _seg(calc, iris_l_esr, iris_r_esr, style="primary", label=f"{esr_pct:.1f}%"),
             ],
             formula={"type": "pct_ratio", "num": ["pl", "pr"], "den": ["lc", "rc"]},
             soft_margin=2.2,
@@ -1545,45 +1728,42 @@ def build_detailed_measurements(
         )
     )
 
-    # FaceIQ «Lower Third Proportion»: (nose→mouth) / (nose→chin).
-    # MediaPipe mouth sits a bit high vs clinical soft-tissue; real faces often
-    # land ~25–35%. Keep a wider band so long-chin model faces aren't zeroed.
-    mouth_mid = _midpoint(mouth_l, mouth_r)
-    _, mouth_v = calc.axes.to_face(*mouth_mid)
-    nose_to_mouth = abs(mouth_v - nose_v)
+    # FaceIQ «Lower Third Proportion»: (subnasale→stomion) / (subnasale→menton).
+    # Stomion (~29% on Sean) matches FaceIQ 29.6 better than mouth-corner mid.
+    nose_to_stom = abs(stom_v - nose_v)
     nose_to_chin = max(abs(cv - nose_v), 1e-3)
-    lower_prop = 100.0 * nose_to_mouth / nose_to_chin
+    lower_prop = 100.0 * nose_to_stom / nose_to_chin
     # Tight headshot: chin landmark often drops into neck → artificially low %.
     chin_y_img = chin_pt[1]
     tight_crop = bool(
         calc.hairline_xy[1] < 0.08 * calc.height or chin_y_img > 0.92 * calc.height
     )
-    lower_ideal = (24.0, 36.0)
-    lower_soft = 6.0 if tight_crop else 5.0
+    lower_ideal = (30.0, 38.0)
+    lower_soft = 5.0 if tight_crop else 4.0
     out.append(
         _pack(
             mid="lower_face_total",
-            label="Lower third proportion",
-            category="челюсть",
+            label="Lower Third Proportion",
+            category=CAT_JAW,
             value=lower_prop,
             unit="%",
             ideal_min=lower_ideal[0],
             ideal_max=lower_ideal[1],
             explanation=(
-                "FaceIQ-стиль: (нос→рот) / (нос→подбородок). Рабочий идеал ≈ 24–36% "
-                f"(на tight-crop мягче). Сейчас {lower_prop:.1f}%."
+                "FaceIQ: (нос→stomion) / (нос→подбородок). Ideal ≈ 30–38% "
+                f"(Sean 29.6% → 5.5). Сейчас {lower_prop:.1f}%."
                 + (" Кадр обрезан — метрика менее надёжна." if tight_crop else "")
             ),
             points=[
                 _pt(calc, "nose", nose_pt, "anchor", 2),
-                _pt(calc, "mouth", mouth_mid, "anchor"),
+                _pt(calc, "stom", stomion, "anchor", 13),
                 _pt(calc, "chin", chin_pt, "anchor", 152),
             ],
             segments=[
                 _seg(calc, nose_pt, chin_pt, style="ref"),
-                _seg(calc, nose_pt, mouth_mid, style="primary", label=f"{lower_prop:.1f}%"),
+                _seg(calc, nose_pt, stomion, style="primary", label=f"{lower_prop:.1f}%"),
             ],
-            formula={"type": "pct_ratio", "num": ["nose", "mouth"], "den": ["nose", "chin"]},
+            formula={"type": "pct_ratio", "num": ["nose", "stom"], "den": ["nose", "chin"]},
             soft_margin=lower_soft,
             scale_pad=8.0,
         )
@@ -1601,7 +1781,7 @@ def build_detailed_measurements(
         _pack(
             mid="cheek_position",
             label="Положение скул по вертикали",
-            category="скулы",
+            category=CAT_SHAPE,
             value=cheek_pos_pct,
             unit="%",
             ideal_min=16.0,
@@ -1635,7 +1815,7 @@ def build_detailed_measurements(
         _pack(
             mid="brow_width",
             label="Ширина бровей",
-            category="брови",
+            category=CAT_EYES,
             value=brow_pct,
             unit="%",
             ideal_min=70.0,

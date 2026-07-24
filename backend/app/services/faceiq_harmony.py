@@ -12,45 +12,52 @@ from typing import Any
 
 import numpy as np
 
-from .scoring import power_mean
-
 # Map our measurement ids → FaceIQ frontal category weights.
 # Weights mirror FaceIQ ratio-breakdown group sizes (approx).
+# Only FaceIQ-published frontal ratios — avoid diluting with filler metrics.
 _HARMONY_GROUPS: list[tuple[str, list[str], float]] = [
     (
         "thirds",
-        ["upper_third", "mid_third", "lower_third", "mid_third_ratio"],
-        0.14,
+        ["upper_third", "mid_third", "lower_third"],
+        0.12,
     ),
     (
         "face_shape",
-        ["face_wh_cheek", "total_face_wh", "face_ratio", "forehead_width", "cheekbone_height"],
-        0.16,
+        ["face_wh_cheek", "total_face_wh", "cheekbone_height"],
+        0.14,
     ),
     (
         "eyes",
-        ["eye_spacing", "eye_aspect", "canthal_tilt", "brow_eye_gap", "brow_width"],
+        [
+            "eye_spacing",
+            "eye_aspect",
+            "canthal_tilt",
+            "outer_eye_span",
+            "brow_tilt",
+            "brow_low_set",
+            "brow_width",
+        ],
         0.18,
     ),
     (
         "nose",
-        ["iaa", "iaa_jfa_diff", "nose_width_bridge", "nose_eye_width", "nose_length", "nose_deviation"],
+        ["iaa", "iaa_jfa_diff", "nose_width_bridge", "intercanthal_nasal"],
         0.14,
     ),
     (
         "mouth",
-        ["mouth_nose_width", "lip_ratio", "philtrum", "mouth_face_width", "mouth_corners"],
+        ["mouth_nose_width", "lip_ratio", "cupid_bow", "chin_philtrum", "mouth_corners"],
         0.14,
     ),
     (
         "jaw",
-        ["jfa", "jaw_width_bigonial", "chin_share", "chin_taper", "cheek_jaw_ratio", "lower_face_total"],
+        ["jfa", "jaw_width_bigonial", "lower_face_total"],
         0.16,
     ),
     (
         "other",
-        ["sym_eyes", "sym_brows", "sym_mouth", "sym_jaw", "sym_cheeks", "golden_face", "neck_width"],
-        0.08,
+        ["neck_width"],
+        0.12,
     ),
 ]
 
@@ -68,9 +75,8 @@ def _group_score(by_id: dict[str, dict[str, Any]], ids: list[str]) -> float | No
             scores.append(float(m["score"]))
     if not scores:
         return None
-    # Within-group: mild weak-link (FaceIQ category sub-scores punish outliers).
-    parts = [(s, 1.0) for s in scores]
-    return float(power_mean(parts, p=0.55))
+    # FaceIQ category tiles use near-arithmetic means (Sean Eyes ≈ 8.9 with OEA 2.8).
+    return float(np.mean(scores))
 
 
 def harmony_from_measurements(measurements: list[dict[str, Any]]) -> dict[str, Any]:
@@ -105,16 +111,15 @@ def harmony_from_measurements(measurements: list[dict[str, Any]]) -> dict[str, A
             "explanation": "Недостаточно фронтальных метрик для Harmony.",
         }
 
-    raw = float(power_mean(group_parts, p=0.50))
+    # Weighted arithmetic mean of category tiles, then mild weak-link toward
+    # the lowest third (FaceIQ front Sean 7.6 with strong eyes but weak OEA).
+    raw = float(np.average([s for s, _ in group_parts], weights=[w for _, w in group_parts]))
     ordered = sorted(s for s, _ in group_parts)
     weak = float(np.mean(ordered[: max(1, len(ordered) // 3)]))
-    # Mild weak-link — FaceIQ front still drops for bad categories, but one
-    # MediaPipe-noisy group shouldn't dominate (OEA often runs high on mesh).
-    blended = 0.72 * raw + 0.28 * weak
+    blended = 0.70 * raw + 0.30 * weak
 
-    # Soft curve toward FaceIQ front scale (~6.5–8.7 for models).
     x = float(np.clip(blended, 0.0, 100.0)) / 100.0
-    scored = 100.0 * (x**1.08)
+    scored = 100.0 * (x**1.10)
     scored = float(np.clip(scored, 0.0, 99.0))
 
     score10 = round(scored / 10.0, 1)

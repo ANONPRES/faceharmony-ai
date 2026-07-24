@@ -151,8 +151,9 @@ def estimate_hairline_point(
     _, chin_v = axes.to_face(*chin)
 
     middle = max(nose_v - brow_v, 1.0)
-    # FaceIQ trichion ≈ upper third ~30–33% of hair→chin ≈ ~1.0× midface length above brow.
-    geometric_v = brow_v - 1.00 * middle
+    # FaceIQ trichion ≈ upper third ~30.7% → hair ≈ 0.92× midface above glabella
+    # (1.0× overstates upper third on MediaPipe mesh, e.g. Sean 33% vs FaceIQ 30.7%).
+    geometric_v = brow_v - 0.92 * middle
     # MediaPipe landmark 10 sits mid-forehead — only a mild lift above it.
     mesh_lift_v = mesh_v - max(0.12 * middle, 4.0)
 
@@ -199,10 +200,11 @@ def estimate_hairline_point(
     else:
         hair_v = geometric_v
 
-    # Keep trichion near the geometric third — color search often climbs into hair
-    # and overstates upper third (~40%+) vs FaceIQ (~30–33%).
-    hair_v = float(np.clip(hair_v, geometric_v - 0.12 * middle, geometric_v + 0.18 * middle))
-    hair_v = min(hair_v, mesh_lift_v)
+    # Keep trichion near FaceIQ geometric third. Color search often climbs into
+    # hair and overstates upper third (~33%+) vs FaceIQ (~30–31%).
+    hair_v = float(np.clip(hair_v, geometric_v - 0.04 * middle, geometric_v + 0.06 * middle))
+    # Mesh top is mid-forehead — never let it pull trichion higher than geometric.
+    hair_v = max(hair_v, geometric_v - 0.02 * middle)
     hair_v = min(hair_v, chin_v - 1.0)
     return axes.to_image(0.0, hair_v)
 
