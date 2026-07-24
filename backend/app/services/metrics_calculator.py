@@ -80,14 +80,14 @@ def _norm_segment(
     }
 
 
-# True profile photo feature weights (separate image, not frontal reweight).
+# True profile photo feature weights (silhouette metrics only).
 TRUE_PROFILE_WEIGHTS = {
     "nose": 0.28,
     "chin": 0.22,
     "jaw": 0.22,
-    "face_shape": 0.12,
-    "midface": 0.10,
-    "lips": 0.06,
+    "face_shape": 0.16,
+    "midface": 0.08,
+    "lips": 0.04,
 }
 
 
@@ -149,46 +149,135 @@ class MetricsCalculator:
 
         Args:
             as_profile_view: When True, treat this calculator as the dedicated
-                profile photo and return a true profile_score (no fake frontal reweight).
+                profile photo and score via silhouette metrics (not frontal widths).
         """
         from .appeal import appeal_score
+        from .profile_silhouette import build_profile_silhouette_scores
 
-        symmetry = self.symmetry_score()
-        thirds = self.facial_thirds_score()
-        fifths = self.facial_fifths_score()
-        eyes = self.eye_spacing_score()
-        nose = aesthetic_features.nose_aesthetics_score(self)
-        lips = self.lip_score()
-        jaw = self.jaw_score()
-        chin = self.chin_score()
-        face_ratio = self.face_width_height_score()
-        golden = self.golden_ratio_score()
-        cheekbones = aesthetic_features.cheekbone_score(self)
-        eye_cut = aesthetic_features.eye_cut_score(self)
-        face_shape = aesthetic_features.face_shape_score(self)
-        brow = aesthetic_features.brow_score(self)
-        midface = aesthetic_features.midface_score(self)
+        # Dedicated profile upload: force profile pose so feature branches
+        # and measurement gates use the profile path.
+        if as_profile_view:
+            self.pose_info = {
+                **self.pose_info,
+                "pose": "profile",
+                "pose_label": "Профиль",
+                "confidence": max(float(self.pose_info.get("confidence", 0.7)), 0.75),
+            }
 
-        metric_map = {
-            "cheekbones": cheekbones,
-            "eye_cut": eye_cut,
-            "nose": nose,
-            "face_shape": face_shape,
-            "jaw": jaw,
-            "symmetry": symmetry,
-            "chin": chin,
-            "lips": lips,
-            "midface": midface,
-            "eyes": eyes,
-            "brow": brow,
-            "golden_ratio": golden,
-            "thirds": thirds,
-            "fifths": fifths,
-            "face_ratio": face_ratio,
-        }
+        if as_profile_view:
+            sil = build_profile_silhouette_scores(self)
+            # Keep unused frontal keys mild/neutral so appeal doesn't explode.
+            metric_map = {
+                "cheekbones": {
+                    "score": 70.0,
+                    "label": "Скулы",
+                    "explanation": "На чистом профиле ширина скул не оценивается.",
+                    "ratio": None,
+                },
+                "eye_cut": {
+                    "score": 70.0,
+                    "label": "Вырез глаз",
+                    "explanation": "На чистом профиле canthal tilt малоинформативен.",
+                    "ratio": None,
+                },
+                "symmetry": {
+                    "score": 70.0,
+                    "label": "Симметрия",
+                    "explanation": "Симметрия по одному боку профиля не считается.",
+                    "ratio": None,
+                },
+                "nose": sil["nose"],
+                "face_shape": sil["face_shape"],
+                "jaw": sil["jaw"],
+                "chin": sil["chin"],
+                "lips": sil["lips"],
+                "midface": sil["midface"],
+                "eyes": {
+                    "score": 70.0,
+                    "label": "Глаза",
+                    "explanation": "Межглазье на профиле не оценивается.",
+                    "ratio": None,
+                },
+                "brow": {
+                    "score": 70.0,
+                    "label": "Брови",
+                    "explanation": "На профиле брови оцениваются ограниченно.",
+                    "ratio": None,
+                },
+                "golden_ratio": {
+                    "score": 70.0,
+                    "label": "Золотое сечение",
+                    "explanation": "На профиле используется контурная гармония вместо φ-ширин.",
+                    "ratio": None,
+                },
+                "thirds": {
+                    "score": 72.0,
+                    "label": "Трети (профиль)",
+                    "explanation": "Вертикальные трети на профиле оцениваются по силуэту отдельно.",
+                    "ratio": None,
+                },
+                "fifths": {
+                    "score": 70.0,
+                    "label": "Пятые",
+                    "explanation": "Горизонтальные пятые на профиле не считаются.",
+                    "ratio": None,
+                },
+                "face_ratio": {
+                    "score": float(sil["face_shape"]["score"]),
+                    "label": "Пропорции",
+                    "explanation": "На профиле ≈ контурная гармония силуэта.",
+                    "ratio": sil["face_shape"].get("ratio"),
+                },
+            }
+        else:
+            symmetry = self.symmetry_score()
+            thirds = self.facial_thirds_score()
+            fifths = self.facial_fifths_score()
+            eyes = self.eye_spacing_score()
+            nose = aesthetic_features.nose_aesthetics_score(self)
+            lips = self.lip_score()
+            jaw = self.jaw_score()
+            chin = self.chin_score()
+            face_ratio = self.face_width_height_score()
+            golden = self.golden_ratio_score()
+            cheekbones = aesthetic_features.cheekbone_score(self)
+            eye_cut = aesthetic_features.eye_cut_score(self)
+            face_shape = aesthetic_features.face_shape_score(self)
+            brow = aesthetic_features.brow_score(self)
+            midface = aesthetic_features.midface_score(self)
+
+            metric_map = {
+                "cheekbones": cheekbones,
+                "eye_cut": eye_cut,
+                "nose": nose,
+                "face_shape": face_shape,
+                "jaw": jaw,
+                "symmetry": symmetry,
+                "chin": chin,
+                "lips": lips,
+                "midface": midface,
+                "eyes": eyes,
+                "brow": brow,
+                "golden_ratio": golden,
+                "thirds": thirds,
+                "fifths": fifths,
+                "face_ratio": face_ratio,
+            }
+
         score_values = {key: float(metric_map[key]["score"]) for key in metric_map}
 
-        appeal = appeal_score(score_values, self.gender)  # type: ignore[arg-type]
+        from .pillars import (
+            compute_pillars,
+            overall_from_pillars,
+            pack_pillar_metrics,
+        )
+
+        pillars = compute_pillars(score_values, self.gender)  # type: ignore[arg-type]
+        for key, detail in pack_pillar_metrics(pillars).items():
+            metric_map[key] = detail
+            score_values[key] = float(detail["score"])
+
+        appeal = appeal_score(score_values, self.gender, pillars=pillars)  # type: ignore[arg-type]
         metric_map["appeal"] = {
             "score": appeal["score"],
             "label": appeal["label"],
@@ -197,33 +286,39 @@ class MetricsCalculator:
         }
         score_values["appeal"] = float(appeal["score"])
 
-        frontal_overall = self._calibrate_overall(
-            self._weighted_overall(score_values, FRONTAL_WEIGHTS), score_values, "frontal"
-        )
-        three_q_overall = self._calibrate_overall(
-            self._weighted_overall(score_values, THREE_QUARTER_WEIGHTS),
-            score_values,
-            "three_quarter",
-        )
+        # Frontal / 3q / profile overall from pillars (rarity curve), not the
+        # old compression that piled everyone into 72–78.
+        pillar_overall = overall_from_pillars(pillars)
+        frontal_overall = pillar_overall
+        three_q_overall = pillar_overall * 0.98  # slight uncertainty on ¾
 
         pose = self.pose_info["pose"]
         if as_profile_view:
-            profile_overall = self._calibrate_overall(
-                self._weighted_overall(score_values, TRUE_PROFILE_WEIGHTS),
-                score_values,
-                "profile",
-            )
+            # Profile photo: score from silhouette feature weights, then rarity curve.
+            raw_profile = self._weighted_overall(score_values, TRUE_PROFILE_WEIGHTS)
+            profile_overall = self._calibrate_overall(raw_profile, score_values, "profile")
             overall = profile_overall
             profile_score: float | None = float(np.clip(round(profile_overall, 1), 0.0, 100.0))
         else:
-            # Frontal (or non-profile) photo: do not invent a fake profile score.
             profile_score = None
             if pose == "three_quarter":
                 overall = three_q_overall
+            elif pose == "profile":
+                raw_profile = self._weighted_overall(score_values, TRUE_PROFILE_WEIGHTS)
+                profile_overall = self._calibrate_overall(raw_profile, score_values, "profile")
+                overall = profile_overall
+                profile_score = float(np.clip(round(profile_overall, 1), 0.0, 100.0))
             else:
                 overall = frontal_overall
-
         measurements = build_detailed_measurements(self, gender=self.gender)
+        if as_profile_view:
+            from .profile_silhouette import build_profile_ceph_measurements
+
+            # Replace unreliable mesh-based "profile" rows with auto soft-tissue ceph.
+            ceph_rows = build_profile_ceph_measurements(self)
+            if ceph_rows:
+                frontal_only = [m for m in measurements if m.get("view") != "profile"]
+                measurements = frontal_only + ceph_rows
 
         return {
             "overall": float(np.clip(round(overall, 1), 0.0, 100.0)),
@@ -236,6 +331,11 @@ class MetricsCalculator:
             "gender": self.gender,
             "appeal": float(appeal["score"]),
             "appeal_10": float(appeal["score_10"]),
+            "harmony": float(round(pillars["harmony"], 1)),
+            "angularity": float(round(pillars["angularity"], 1)),
+            "dimorphism": float(round(pillars["dimorphism"], 1)),
+            "features_pillar": float(round(pillars["features"], 1)),
+            "pillars": {k: float(round(v, 1)) for k, v in pillars.items()},
             "scores": {k: float(round(v, 1)) for k, v in score_values.items()},
             "metrics": metric_map,
             "measurements": measurements,
@@ -245,24 +345,29 @@ class MetricsCalculator:
     def _weighted_overall(self, scores: dict[str, float], weights: dict[str, float]) -> float:
         """Pose-specific overall with weak-metric penalty (power mean)."""
         parts = [(scores[k], w) for k, w in weights.items() if k in scores]
-        return power_mean(parts, p=0.50)
+        # Profile silhouette metrics are noisier — less brutal power mean.
+        p = 0.72 if weights is TRUE_PROFILE_WEIGHTS else 0.50
+        return power_mean(parts, p=p)
 
     def _calibrate_overall(self, raw: float, scores: dict[str, float], pose: str) -> float:
         """
-        Honest / harsh scale:
-        - mediocre / uneven → mid 50s–60s
-        - solid ordinary capture → ~62–72
-        - consistently strong → ~74–80
-        - 85+ rare
+        Profile / legacy path: weak-link blend + rarity curve (no 72→78 squash).
+
+        Target bands:
+        - uneven / average → mid 50s–65
+        - solid → ~68–78
+        - consistently elite → ~85–94
         """
+        from .pillars import rarity_curve
+
         core_keys = (
             ["cheekbones", "eye_cut", "nose", "face_shape", "jaw", "symmetry"]
             if pose != "profile"
-            else ["nose", "chin", "jaw", "cheekbones", "face_shape"]
+            else ["nose", "chin", "jaw", "face_shape", "midface"]
         )
         core = [scores[k] for k in core_keys if k in scores]
         if not core:
-            return raw
+            return rarity_curve(raw)
 
         ordered = sorted(core)
         weak = float(np.mean(ordered[:2]))
@@ -270,36 +375,15 @@ class MetricsCalculator:
         spread = float(np.std(core))
         top = float(np.mean(ordered[-2:]))
 
-        blended = 0.35 * raw + 0.50 * weak + 0.15 * top
+        blended = 0.40 * raw + 0.40 * weak + 0.20 * top
+        if spread >= 14:
+            blended -= min(8.0, (spread - 14.0) * 0.5)
+        if weak >= 92 and mean_core >= 93 and spread <= 4.5:
+            blended += 2.0
+        elif weak >= 88 and mean_core >= 90:
+            blended += 1.0
 
-        if weak >= 92 and mean_core >= 94 and spread <= 5:
-            blended += 0.8
-        elif spread >= 12:
-            blended -= min(10.0, (spread - 12.0) * 0.65)
-
-        # Compress early — typical gallery faces should land mid-50s to low-70s.
-        if blended > 72:
-            blended = 72.0 + (blended - 72.0) * 0.18
-        elif blended > 64:
-            blended = 64.0 + (blended - 64.0) * 0.40
-        elif blended > 55:
-            blended = 55.0 + (blended - 55.0) * 0.65
-
-        cheek = scores.get("cheekbones", 0.0)
-        eye = scores.get("eye_cut", 0.0)
-        chin = scores.get("chin", 0.0)
-        shape = scores.get("face_shape", 0.0)
-        if cheek >= 96 and eye >= 95:
-            blended += 1.2
-        elif cheek >= 93 and eye >= 92:
-            blended += 0.4
-        if chin >= 95 and shape >= 94:
-            blended += 0.4
-
-        if blended > 78:
-            blended = 78.0 + (blended - 78.0) * 0.22
-
-        return float(np.clip(blended, 0.0, 100.0))
+        return rarity_curve(blended)
 
 
     def symmetry_score(self) -> dict[str, Any]:

@@ -96,6 +96,11 @@ class AnalysisResponse(BaseModel):
     gender: Literal["male", "female"] = "male"
     appeal: float = 0.0
     appeal_10: float = 0.0
+    harmony: float = 0.0
+    angularity: float = 0.0
+    dimorphism: float = 0.0
+    features_pillar: float = 0.0
+    pillars: dict[str, float] = Field(default_factory=dict)
     pose: Literal["frontal", "three_quarter", "profile"]
     pose_label: str
     pose_confidence: float

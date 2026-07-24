@@ -232,11 +232,19 @@ def estimate_pose(landmarks: list[dict[str, Any]], roll_deg: float = 0.0) -> dic
 
     abs_roll = abs(roll_deg)
 
-    if side_ratio < 0.38 or eye_width_ratio < 0.28:
+    # True side profiles often keep a middling side_ratio in MediaPipe while
+    # yaw explodes and eye span collapses — treat those as profile.
+    if (
+        side_ratio < 0.42
+        or eye_width_ratio < 0.34
+        or abs(yaw) > 0.55
+    ):
         pose = "profile"
         label = "Профиль"
-        confidence = float(np.clip(1.0 - side_ratio, 0.55, 0.98))
-    elif side_ratio < 0.68 or abs(yaw) > 0.10:
+        confidence = float(
+            np.clip(max(1.0 - side_ratio, abs(yaw) / 2.0, 1.0 - eye_width_ratio), 0.55, 0.98)
+        )
+    elif side_ratio < 0.68 or abs(yaw) > 0.12:
         pose = "three_quarter"
         label = "Три четверти"
         confidence = float(np.clip(0.55 + (0.68 - side_ratio), 0.5, 0.9))

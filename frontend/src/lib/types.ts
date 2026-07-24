@@ -106,6 +106,16 @@ export interface AnalysisResult {
   gender?: Gender;
   appeal?: number;
   appeal_10?: number;
+  harmony?: number;
+  angularity?: number;
+  dimorphism?: number;
+  features_pillar?: number;
+  pillars?: {
+    harmony: number;
+    angularity: number;
+    dimorphism: number;
+    features: number;
+  };
   pose: FacePose;
   pose_label: string;
   pose_confidence: number;

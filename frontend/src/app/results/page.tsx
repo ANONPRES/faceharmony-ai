@@ -143,6 +143,35 @@ function ResultsContent() {
               </div>
             </div>
           )}
+
+          {(result.pillars || result.harmony != null) && (
+            <div className="grid w-full max-w-md grid-cols-2 gap-2">
+              {(
+                [
+                  ["Harmony", result.pillars?.harmony ?? result.harmony],
+                  ["Angularity", result.pillars?.angularity ?? result.angularity],
+                  ["Dimorphism", result.pillars?.dimorphism ?? result.dimorphism],
+                  [
+                    "Features",
+                    result.pillars?.features ?? result.features_pillar,
+                  ],
+                ] as const
+              ).map(([label, value]) => (
+                <div
+                  key={label}
+                  className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-center"
+                >
+                  <div className="text-[10px] uppercase tracking-wider text-white/45">
+                    {label}
+                  </div>
+                  <div className="mt-0.5 font-[family-name:var(--font-display)] text-lg text-white">
+                    {typeof value === "number" ? (value / 10).toFixed(1) : "—"}
+                    <span className="text-xs text-white/35">/10</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="flex flex-wrap items-center justify-center gap-2">
             <span className="rounded-full border border-violet-300/30 bg-violet-500/15 px-3 py-1 text-xs text-violet-100">
               {result.pose_label}
