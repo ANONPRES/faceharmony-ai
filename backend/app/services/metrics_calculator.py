@@ -606,13 +606,13 @@ class MetricsCalculator:
                 "ratio": round(mand, 4),
             }
 
-        # Men: wider / more square jaw; women: stronger V-taper.
-        # Soften sigma — elite faces often sit ~0.80–0.88 jaw/cheek.
-        jaw_ideal = 0.84 if self.gender == "male" else 0.78
+        # Men: slightly tapered square jaw (~0.80–0.84); women: stronger V-taper.
+        # Elite male meshes often sit ~0.80–0.82 — don't peak at 0.86.
+        jaw_ideal = 0.81 if self.gender == "male" else 0.77
         score = combine_scores(
             [
-                (soft_score(jaw_cheek, jaw_ideal, 0.10), 0.65),
-                (soft_score(jaw_depth, 0.33, 0.10), 0.35),
+                (soft_score(jaw_cheek, jaw_ideal, 0.08), 0.62),
+                (soft_score(jaw_depth, 0.33, 0.09), 0.38),
             ]
         )
         return {

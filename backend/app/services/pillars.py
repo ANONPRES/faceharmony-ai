@@ -8,7 +8,7 @@ Pillars
 4. Features  — eyes, nose, lips as individual assets
 
 Overall / Appeal are derived from pillars with a rarity curve so elite faces
-can reach the high 80s–90s while ordinary captures stay mid-50s to low-70s.
+can reach the high 80s–90s while soft / average captures stay ~50–68 — not 80+.
 """
 
 from __future__ import annotations
@@ -39,18 +39,6 @@ def compute_pillars(scores: dict[str, float], gender: Gender) -> dict[str, float
             ("midface", 0.10),
             ("eyes", 0.06),
         ],
-        p=0.50,
-    )
-
-    angularity = _pm(
-        scores,
-        [
-            ("jaw", 0.30),
-            ("cheekbones", 0.28),
-            ("chin", 0.20),
-            ("face_shape", 0.14),
-            ("brow", 0.08),
-        ],
         p=0.42,
     )
 
@@ -61,12 +49,35 @@ def compute_pillars(scores: dict[str, float], gender: Gender) -> dict[str, float
     lips = float(scores.get("lips", 55.0))
     mid = float(scores.get("midface", 55.0))
     brow = float(scores.get("brow", 55.0))
+    face_shape = float(scores.get("face_shape", 55.0))
 
-    angular_block = 0.40 * jaw + 0.30 * cheek + 0.20 * chin + 0.10 * brow
+    # Jaw width alone is easy to max on soft faces; elite angularity needs
+    # cheekbones + chin in the same band (FaceIQ bone-consistency).
+    if cheek < 92:
+        jaw = min(jaw, cheek + 5.0)
+        chin = min(chin, cheek + 8.0)
+        face_shape = min(face_shape, cheek + 10.0)
+    if cheek < 82:
+        # Soft / low zygoma: further crush "square jaw" inflation.
+        jaw = min(jaw, cheek + 2.0)
+        chin = min(chin, cheek + 4.0)
+
+    angularity = power_mean(
+        [
+            (jaw, 0.28),
+            (cheek, 0.34),
+            (chin, 0.20),
+            (face_shape, 0.12),
+            (brow, 0.06),
+        ],
+        p=0.32,
+    )
+
+    angular_block = 0.38 * jaw + 0.36 * cheek + 0.18 * chin + 0.08 * brow
     soft_block = 0.40 * lips + 0.35 * eye + 0.25 * mid
     if gender == "male":
         # Male dimorphism rewards angular structure; soft traits still matter a bit.
-        dimorphism = 0.72 * angular_block + 0.28 * soft_block
+        dimorphism = 0.78 * angular_block + 0.22 * soft_block
     else:
         dimorphism = 0.62 * soft_block + 0.38 * angular_block
 
@@ -77,8 +88,10 @@ def compute_pillars(scores: dict[str, float], gender: Gender) -> dict[str, float
             ("nose", 0.35),
             ("lips", 0.25),
         ],
-        p=0.45,
+        p=0.40,
     )
+    # Pretty eyes/nose can't carry Features far above bone.
+    features = min(features, angularity + 4.0, cheek + 12.0)
 
     return {
         "harmony": float(np.clip(harmony, 0.0, 100.0)),
@@ -90,22 +103,26 @@ def compute_pillars(scores: dict[str, float], gender: Gender) -> dict[str, float
 
 def rarity_curve(raw: float) -> float:
     """
-    Expand dynamic range so mid faces don't pile up near elites.
+    Crush mid-band inflation; keep true elites separable at the top.
 
-    Intended landmarks (after pillar power-mean):
-      ~55 raw → ~52 overall   (below average)
-      ~65 raw → ~60           (average)
-      ~75 raw → ~71           (solid)
-      ~82 raw → ~80           (clearly attractive)
-      ~88 raw → ~87           (model-tier)
-      ~94 raw → ~93           (near-ideal, rare)
+    Intended landmarks (after pillar blend):
+      ~55 raw → ~42 overall   (below average)
+      ~65 raw → ~52           (average)
+      ~75 raw → ~60           (solid / above avg)
+      ~82 raw → ~68           (attractive — not elite)
+      ~88 raw → ~78           (strong)
+      ~92 raw → ~90           (model-tier)
+      ~96 raw → ~97           (near-ideal)
     """
     x = float(np.clip(raw, 0.0, 100.0)) / 100.0
-    # Super-linear: mid scores drop, top scores stay high and separable.
-    y = 100.0 * (x**1.38)
-    # Gentle lift at the very top so true elites aren't capped too early.
-    if y > 86:
-        y = 86.0 + (y - 86.0) * 1.15
+    # Mid crush; steeper than ^1.38 so soft faces don't sit at 80+.
+    y = 100.0 * (x**1.92)
+    # Elite lift once raw clears model threshold.
+    if raw >= 88.5:
+        over = raw - 88.5
+        y = max(y, 76.0 + over * 1.75)
+        if raw >= 92.0:
+            y += (raw - 92.0) * 0.55
     return float(np.clip(y, 0.0, 99.5))
 
 
@@ -122,38 +139,40 @@ def overall_from_pillars(pillars: dict[str, float]) -> float:
     f = pillars["features"]
 
     # Features can't float far above bone structure (common inflation pattern).
-    f_eff = min(f, a + 5.0, d + 5.0)
+    f_eff = min(f, a + 3.0, d + 3.0)
 
     raw = power_mean(
         [
-            (h, 0.30),
-            (a, 0.30),
-            (d, 0.26),
-            (f_eff, 0.14),
+            (h, 0.26),
+            (a, 0.34),
+            (d, 0.28),
+            (f_eff, 0.12),
         ],
-        p=0.40,
+        p=0.32,
     )
 
     weakest = min(h, a, d, f_eff)
-    if weakest < 78:
-        raw = 0.50 * raw + 0.50 * weakest
-    elif weakest < 88:
-        raw = 0.65 * raw + 0.35 * weakest
+    bone = 0.5 * (a + d)
+    # Mid faces often have flat high pillars — pull hard toward the weak/bone floor.
+    if weakest < 82:
+        raw = 0.32 * raw + 0.48 * weakest + 0.20 * bone
+    elif weakest < 90:
+        raw = 0.48 * raw + 0.38 * weakest + 0.14 * bone
+    elif weakest < 94:
+        raw = 0.62 * raw + 0.38 * weakest
 
     mean_p = 0.25 * (h + a + d + f_eff)
     spread = float(np.std([h, a, d, f_eff]))
 
-    # Bone-structure bonus (Sean / Barrett class).
-    if a >= 90 and d >= 90:
-        raw += 4.0
-    elif a >= 87 and d >= 87:
-        raw += 2.5
-    elif a >= 84 and d >= 84:
-        raw += 1.0
-
-    if weakest >= 91 and mean_p >= 92 and spread <= 4.0:
+    # Bone-structure bonus for model-tier A+D.
+    if a >= 92 and d >= 91:
+        raw += 5.0
+    elif a >= 89 and d >= 89:
         raw += 3.0
-    elif weakest >= 88 and mean_p >= 89 and spread <= 5.5:
+
+    if weakest >= 93 and mean_p >= 94 and spread <= 3.5:
+        raw += 3.0
+    elif weakest >= 90 and mean_p >= 91 and spread <= 4.5:
         raw += 1.5
 
     return rarity_curve(raw)
@@ -169,24 +188,26 @@ def appeal_from_pillars(pillars: dict[str, float], gender: Gender) -> dict[str, 
     a = pillars["angularity"]
     d = pillars["dimorphism"]
     f = pillars["features"]
-    f_eff = min(f, a + 6.0, d + 6.0)
+    f_eff = min(f, a + 3.0, d + 3.0)
 
     raw = power_mean(
         [
-            (h, 0.26),
-            (a, 0.30),
+            (h, 0.24),
+            (a, 0.34),
             (d, 0.26),
-            (f_eff, 0.18),
+            (f_eff, 0.16),
         ],
-        p=0.38,
+        p=0.30,
     )
     weakest = min(h, a, d, f_eff)
-    if weakest < 80:
-        raw = 0.48 * raw + 0.52 * weakest
+    if weakest < 82:
+        raw = 0.35 * raw + 0.65 * weakest
+    elif weakest < 90:
+        raw = 0.50 * raw + 0.50 * weakest
 
-    if a >= 90 and d >= 90:
+    if a >= 92 and d >= 91:
         raw += 3.5
-    elif a >= 87 and d >= 87:
+    elif a >= 89 and d >= 89:
         raw += 2.0
 
     score100 = rarity_curve(raw)
