@@ -10,9 +10,19 @@ const API_BASE =
 /**
  * Отправить фото на анализ.
  */
-export async function analyzeFace(file: File): Promise<AnalysisResult> {
+export async function analyzeFace(
+  file: File,
+  options: {
+    gender?: "male" | "female";
+    profileFile?: File | null;
+  } = {},
+): Promise<AnalysisResult> {
   const form = new FormData();
   form.append("file", file);
+  form.append("gender", options.gender ?? "male");
+  if (options.profileFile) {
+    form.append("profile_file", options.profileFile);
+  }
 
   const response = await fetch(`${API_BASE}/analyze`, {
     method: "POST",

@@ -170,7 +170,10 @@ export default function HistoryPage() {
                     анфас {Math.round(entry.result.frontal_score ?? entry.result.overall)}
                   </div>
                   <div className="rounded-xl bg-white/5 py-1.5">
-                    профиль {Math.round(entry.result.profile_score ?? entry.result.overall)}
+                    профиль{" "}
+                    {entry.result.profile_score == null
+                      ? "—"
+                      : Math.round(entry.result.profile_score)}
                   </div>
                 </div>
                 <div className="flex gap-2">

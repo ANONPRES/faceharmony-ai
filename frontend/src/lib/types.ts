@@ -97,11 +97,15 @@ export interface OverlayGuides {
 }
 
 export type FacePose = "frontal" | "three_quarter" | "profile";
+export type Gender = "male" | "female";
 
 export interface AnalysisResult {
   overall: number;
   frontal_score: number;
-  profile_score: number;
+  profile_score: number | null;
+  gender?: Gender;
+  appeal?: number;
+  appeal_10?: number;
   pose: FacePose;
   pose_label: string;
   pose_confidence: number;

@@ -80,6 +80,17 @@ def _norm_segment(
     }
 
 
+# True profile photo feature weights (separate image, not frontal reweight).
+TRUE_PROFILE_WEIGHTS = {
+    "nose": 0.28,
+    "chin": 0.22,
+    "jaw": 0.22,
+    "face_shape": 0.12,
+    "midface": 0.10,
+    "lips": 0.06,
+}
+
+
 class MetricsCalculator:
     """
     Compute facial proportion metrics in a face-aligned frame.
@@ -94,12 +105,14 @@ class MetricsCalculator:
         width: int,
         height: int,
         bgr_image: np.ndarray | None = None,
+        gender: str = "male",
     ) -> None:
-        """Initialize axes, pose, and corrected hairline."""
+        """Initialize axes, pose, gender, and corrected hairline."""
         self.landmarks = landmarks
         self.width = width
         self.height = height
         self.bgr_image = bgr_image
+        self.gender = gender if gender in ("male", "female") else "male"
         self.axes: FaceAxes = build_face_axes(landmarks, width, height)
         self.pose_info = estimate_pose(landmarks, roll_deg=self.axes.roll_deg)
         if bgr_image is not None:
@@ -131,8 +144,15 @@ class MetricsCalculator:
         """Indexed landmark in face-local (u, v)."""
         return self.axes.to_face(*self.px_index(index))
 
-    def calculate_all(self) -> dict[str, Any]:
-        """Compute all metrics, pose-aware overall, and rotated overlay guides."""
+    def calculate_all(self, *, as_profile_view: bool = False) -> dict[str, Any]:
+        """Compute all metrics, pose-aware overall, and rotated overlay guides.
+
+        Args:
+            as_profile_view: When True, treat this calculator as the dedicated
+                profile photo and return a true profile_score (no fake frontal reweight).
+        """
+        from .appeal import appeal_score
+
         symmetry = self.symmetry_score()
         thirds = self.facial_thirds_score()
         fifths = self.facial_fifths_score()
@@ -168,11 +188,17 @@ class MetricsCalculator:
         }
         score_values = {key: float(metric_map[key]["score"]) for key in metric_map}
 
+        appeal = appeal_score(score_values, self.gender)  # type: ignore[arg-type]
+        metric_map["appeal"] = {
+            "score": appeal["score"],
+            "label": appeal["label"],
+            "explanation": appeal["explanation"],
+            "ratio": appeal["ratio"],
+        }
+        score_values["appeal"] = float(appeal["score"])
+
         frontal_overall = self._calibrate_overall(
             self._weighted_overall(score_values, FRONTAL_WEIGHTS), score_values, "frontal"
-        )
-        profile_overall = self._calibrate_overall(
-            self._weighted_overall(score_values, PROFILE_WEIGHTS), score_values, "profile"
         )
         three_q_overall = self._calibrate_overall(
             self._weighted_overall(score_values, THREE_QUARTER_WEIGHTS),
@@ -181,23 +207,35 @@ class MetricsCalculator:
         )
 
         pose = self.pose_info["pose"]
-        if pose == "profile":
+        if as_profile_view:
+            profile_overall = self._calibrate_overall(
+                self._weighted_overall(score_values, TRUE_PROFILE_WEIGHTS),
+                score_values,
+                "profile",
+            )
             overall = profile_overall
-        elif pose == "three_quarter":
-            overall = three_q_overall
+            profile_score: float | None = float(np.clip(round(profile_overall, 1), 0.0, 100.0))
         else:
-            overall = frontal_overall
+            # Frontal (or non-profile) photo: do not invent a fake profile score.
+            profile_score = None
+            if pose == "three_quarter":
+                overall = three_q_overall
+            else:
+                overall = frontal_overall
 
-        measurements = build_detailed_measurements(self)
+        measurements = build_detailed_measurements(self, gender=self.gender)
 
         return {
             "overall": float(np.clip(round(overall, 1), 0.0, 100.0)),
             "frontal_score": float(np.clip(round(frontal_overall, 1), 0.0, 100.0)),
-            "profile_score": float(np.clip(round(profile_overall, 1), 0.0, 100.0)),
+            "profile_score": profile_score,
             "pose": pose,
             "pose_label": self.pose_info["pose_label"],
             "pose_confidence": float(round(self.pose_info["confidence"], 3)),
             "roll_deg": float(round(self.axes.roll_deg, 2)),
+            "gender": self.gender,
+            "appeal": float(appeal["score"]),
+            "appeal_10": float(appeal["score_10"]),
             "scores": {k: float(round(v, 1)) for k, v in score_values.items()},
             "metrics": metric_map,
             "measurements": measurements,
@@ -207,17 +245,15 @@ class MetricsCalculator:
     def _weighted_overall(self, scores: dict[str, float], weights: dict[str, float]) -> float:
         """Pose-specific overall with weak-metric penalty (power mean)."""
         parts = [(scores[k], w) for k, w in weights.items() if k in scores]
-        return power_mean(parts, p=0.65)
+        return power_mean(parts, p=0.50)
 
     def _calibrate_overall(self, raw: float, scores: dict[str, float], pose: str) -> float:
         """
-        Honest scale:
-        - mediocre / uneven geometry → mid 60s
-        - solid but ordinary frontal capture → ~70–76
-        - consistently strong ratios → ~80–88
-        - 90+ only when almost all core metrics are high
-
-        Skin, acne, and styling are intentionally excluded — this is geometry only.
+        Honest / harsh scale:
+        - mediocre / uneven → mid 50s–60s
+        - solid ordinary capture → ~62–72
+        - consistently strong → ~74–80
+        - 85+ rare
         """
         core_keys = (
             ["cheekbones", "eye_cut", "nose", "face_shape", "jaw", "symmetry"]
@@ -234,39 +270,34 @@ class MetricsCalculator:
         spread = float(np.std(core))
         top = float(np.mean(ordered[-2:]))
 
-        # Weak metrics must show up; strong traits still lift the ceiling.
-        blended = 0.55 * raw + 0.30 * weak + 0.15 * top
+        blended = 0.35 * raw + 0.50 * weak + 0.15 * top
 
-        # Only reward faces that are strong *and* consistent.
-        if weak >= 90 and mean_core >= 94 and spread <= 6:
-            blended += 1.5
-        elif spread >= 16:
-            blended -= min(6.0, (spread - 16.0) * 0.45)
+        if weak >= 92 and mean_core >= 94 and spread <= 5:
+            blended += 0.8
+        elif spread >= 12:
+            blended -= min(10.0, (spread - 12.0) * 0.65)
 
-        # Compress first so absolute scale stays honest (~70–88).
-        if blended > 84:
-            blended = 84.0 + (blended - 84.0) * 0.30
-        elif blended > 76:
-            blended = 76.0 + (blended - 76.0) * 0.55
-        elif blended > 68:
-            blended = 68.0 + (blended - 68.0) * 0.75
+        # Compress early — typical gallery faces should land mid-50s to low-70s.
+        if blended > 72:
+            blended = 72.0 + (blended - 72.0) * 0.18
+        elif blended > 64:
+            blended = 64.0 + (blended - 64.0) * 0.40
+        elif blended > 55:
+            blended = 55.0 + (blended - 55.0) * 0.65
 
-        # Structure lift AFTER compression so high cheekbones + eye cut still separate
-        # from a softer but balanced face (without pushing everyone into the mid-90s).
         cheek = scores.get("cheekbones", 0.0)
         eye = scores.get("eye_cut", 0.0)
         chin = scores.get("chin", 0.0)
         shape = scores.get("face_shape", 0.0)
-        if cheek >= 94 and eye >= 93:
-            blended += 2.5
-        elif cheek >= 90 and eye >= 88:
-            blended += 1.0
-        if chin >= 94 and shape >= 92:
-            blended += 1.0
+        if cheek >= 96 and eye >= 95:
+            blended += 1.2
+        elif cheek >= 93 and eye >= 92:
+            blended += 0.4
+        if chin >= 95 and shape >= 94:
+            blended += 0.4
 
-        # Soft ceiling: elite geometry can touch high 80s; 90+ stays rare.
-        if blended > 88:
-            blended = 88.0 + (blended - 88.0) * 0.35
+        if blended > 78:
+            blended = 78.0 + (blended - 78.0) * 0.22
 
         return float(np.clip(blended, 0.0, 100.0))
 
@@ -459,9 +490,11 @@ class MetricsCalculator:
         mouth_width = _distance(self.px("mouth_left"), self.px("mouth_right"))
         face_width = abs(self.face("right_cheek")[0] - self.face("left_cheek")[0])
         mouth_face = mouth_width / face_width if face_width > 1e-3 else 0.4
+        # Women: fuller lower lip ideal; men: slightly flatter.
+        lip_ideal = 1.65 if self.gender == "female" else 1.35
         score = combine_scores(
             [
-                (soft_score(lip_ratio, 1.30, 0.50), 0.4),
+                (soft_score(lip_ratio, lip_ideal, 0.45), 0.4),
                 (soft_score(mouth_face, 0.40, 0.10), 0.6),
             ]
         )
@@ -489,17 +522,21 @@ class MetricsCalculator:
                 "ratio": round(mand, 4),
             }
 
+        # Men: wider / more square jaw; women: stronger V-taper.
+        jaw_ideal = 0.86 if self.gender == "male" else 0.78
         score = combine_scores(
             [
-                # Mild V-taper (~0.80–0.85) reads more sculpted than a near-square 0.90.
-                (soft_score(jaw_cheek, 0.81, 0.07), 0.65),
+                (soft_score(jaw_cheek, jaw_ideal, 0.07), 0.65),
                 (soft_score(jaw_depth, 0.31, 0.07), 0.35),
             ]
         )
         return {
             "score": round(score, 1),
-            "label": "Чёткость челюсти",
-            "explanation": "Ширина челюсти относительно скул вдоль оси лица.",
+            "label": "Челюсть",
+            "explanation": (
+                f"Отношение ширины челюсти к скулам ≈ {jaw_cheek:.2f} "
+                f"(идеал для {'мужчин' if self.gender == 'male' else 'женщин'} ≈ {jaw_ideal:.2f})."
+            ),
             "ratio": round(jaw_cheek, 4),
         }
 

@@ -60,6 +60,7 @@ function ResultsContent() {
   const cards = useMemo(() => {
     if (!result) return [];
     const order = [
+      "appeal",
       "cheekbones",
       "eye_cut",
       "nose",
@@ -121,11 +122,27 @@ function ResultsContent() {
             Форма лица: {result.face_shape_label}
           </p>
         )}
+        {result.gender && (
+          <p className="mt-2 text-sm text-white/50">
+            Идеалы: {result.gender === "female" ? "женщина" : "мужчина"}
+          </p>
+        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
         <GlassCard className="flex flex-col items-center justify-center gap-6">
           <ScoreRing score={result.overall} label="Общая гармония" />
+          {typeof result.appeal_10 === "number" && (
+            <div className="text-center">
+              <div className="text-[11px] uppercase tracking-wider text-amber-200/70">
+                Appeal
+              </div>
+              <div className="mt-1 font-[family-name:var(--font-display)] text-3xl text-amber-100">
+                {result.appeal_10.toFixed(1)}
+                <span className="text-base text-white/40"> / 10</span>
+              </div>
+            </div>
+          )}
           <div className="flex flex-wrap items-center justify-center gap-2">
             <span className="rounded-full border border-violet-300/30 bg-violet-500/15 px-3 py-1 text-xs text-violet-100">
               {result.pose_label}
@@ -155,13 +172,18 @@ function ResultsContent() {
                 Профиль
               </div>
               <div className="mt-1 font-[family-name:var(--font-display)] text-3xl text-white">
-                {Math.round(result.profile_score)}
+                {result.profile_score == null
+                  ? "—"
+                  : Math.round(result.profile_score)}
               </div>
+              {result.profile_score == null && (
+                <p className="mt-1 text-[10px] text-white/35">нет фото профиля</p>
+              )}
             </div>
           </div>
           <p className="max-w-md text-center text-xs text-white/40">
-            Оба балла считаются всегда. Активный overall берётся по определённому
-            ракурсу кадра — сравнивайте анфас с анфасом, профиль с профилем.
+            Profile score считается только по отдельному фото профиля. Overall —
+            анфас, либо смесь 65/35 если профиль загружен.
           </p>
         </GlassCard>
 

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ImageUploader } from "@/components/ImageUploader";
+import { ImageUploader, type AnalyzePayload } from "@/components/ImageUploader";
 import { GlassCard } from "@/components/GlassCard";
 import { analyzeFace, compressImageForStorage } from "@/lib/api";
 import { addHistoryEntry } from "@/lib/history";
@@ -15,16 +15,18 @@ export default function UploadPage() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
 
-  const handleAnalyze = async (file: File, _previewUrl: string) => {
+  const handleAnalyze = async (payload: AnalyzePayload) => {
     setBusy(true);
     try {
-      const result = await analyzeFace(file);
-      // Keep storage payloads tiny — gallery shots are often 5–15MB.
-      const preview = await compressImageForStorage(file, {
+      const result = await analyzeFace(payload.file, {
+        gender: payload.gender,
+        profileFile: payload.profileFile,
+      });
+      const preview = await compressImageForStorage(payload.file, {
         maxEdge: 960,
         quality: 0.58,
       });
-      const thumb = await compressImageForStorage(file, {
+      const thumb = await compressImageForStorage(payload.file, {
         maxEdge: 360,
         quality: 0.55,
       });
@@ -46,8 +48,8 @@ export default function UploadPage() {
           Анализ лица
         </h1>
         <p className="mx-auto mt-3 max-w-xl text-sm text-white/55 sm:text-base">
-          Загрузите чёткое фото. Система определит ракурс (анфас / профиль),
-          линию роста волос и посчитает образовательные метрики гармонии.
+          Укажите пол (для идеалов метрик), загрузите анфас и при желании —
+          отдельное фото профиля для настоящего profile score.
         </p>
       </div>
 

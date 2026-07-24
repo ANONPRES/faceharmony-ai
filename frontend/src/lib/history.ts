@@ -6,7 +6,7 @@
 import type { AnalysisResult, HistoryEntry } from "./types";
 import { slimResultForHistory } from "./session";
 
-const STORAGE_KEY = "faceharmony.history.v7";
+const STORAGE_KEY = "faceharmony.history.v8";
 const MAX_ENTRIES = 8;
 
 function isQuotaError(err: unknown): boolean {
@@ -27,6 +27,7 @@ export function loadHistory(): HistoryEntry[] {
   try {
     const raw =
       localStorage.getItem(STORAGE_KEY) ??
+      localStorage.getItem("faceharmony.history.v7") ??
       localStorage.getItem("faceharmony.history.v6");
     if (!raw) return [];
     const parsed = JSON.parse(raw) as HistoryEntry[];
@@ -44,6 +45,7 @@ function saveHistory(entries: HistoryEntry[]): void {
   while (next.length > 0) {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      localStorage.removeItem("faceharmony.history.v7");
       localStorage.removeItem("faceharmony.history.v6");
       return;
     } catch (err) {
@@ -94,6 +96,7 @@ export function removeHistoryEntry(id: string): void {
  */
 export function clearHistory(): void {
   localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem("faceharmony.history.v7");
   localStorage.removeItem("faceharmony.history.v6");
 }
 

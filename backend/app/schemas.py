@@ -92,7 +92,10 @@ class AnalysisResponse(BaseModel):
 
     overall: float
     frontal_score: float
-    profile_score: float
+    profile_score: float | None = None
+    gender: Literal["male", "female"] = "male"
+    appeal: float = 0.0
+    appeal_10: float = 0.0
     pose: Literal["frontal", "three_quarter", "profile"]
     pose_label: str
     pose_confidence: float
@@ -122,5 +125,5 @@ class AnalysisResponse(BaseModel):
     image_height: int
     disclaimer: str = (
         "FaceHarmony AI оценивает геометрию черт: скулы, вырез глаз, нос, форму лица, "
-        "челюсть и баланс. Это эстетические пропорции на фото, не вердикт о человеке."
+        "челюсть и баланс. Appeal — образовательный proxy, не вердикт о человеке."
     )

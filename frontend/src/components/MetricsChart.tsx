@@ -20,6 +20,7 @@ interface MetricsChartProps {
  */
 export function MetricsChart({ result }: MetricsChartProps) {
   const data = [
+    { metric: "Appeal", score: result.appeal ?? result.metrics.appeal?.score ?? 0 },
     { metric: "Скулы", score: result.cheekbones ?? result.metrics.cheekbones?.score ?? 0 },
     { metric: "Вырез", score: result.eye_cut ?? result.metrics.eye_cut?.score ?? 0 },
     { metric: "Нос", score: result.nose },

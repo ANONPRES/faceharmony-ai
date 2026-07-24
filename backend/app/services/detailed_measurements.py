@@ -256,8 +256,13 @@ def _jaw_frontal_angle(calc: Any) -> tuple[float, Point, Point, Point, Point, Po
     return primary
 
 
-def build_detailed_measurements(calc: Any) -> list[dict[str, Any]]:
+def build_detailed_measurements(
+    calc: Any,
+    gender: str | None = None,
+) -> list[dict[str, Any]]:
     """Return 45+ atomic measurements with ideals and overlay geometry."""
+    from .gender_ideals import Gender, resolve_ideal
+    from .scoring import range_score
     out: list[dict[str, Any]] = []
     hv, cv, face_h, hair, chin = _face_height_v(calc)
     brow = calc.px("glabella")
@@ -1602,6 +1607,24 @@ def build_detailed_measurements(calc: Any) -> list[dict[str, Any]]:
         allowed = {"frontal", "any"}
 
     out = [m for m in out if m.get("view", "frontal") in allowed]
+
+    # Apply male/female ideal overrides and rescore.
+    g: Gender | None = gender if gender in ("male", "female") else None
+    if g is not None:
+        for m in out:
+            lo, hi = resolve_ideal(g, m["id"], m["ideal_min"], m["ideal_max"])
+            if lo == m["ideal_min"] and hi == m["ideal_max"]:
+                continue
+            m["ideal_min"] = round(float(lo), 4)
+            m["ideal_max"] = round(float(hi), 4)
+            soft = m.get("soft_margin")
+            score100 = range_score(m["value"], lo, hi, soft)
+            m["score"] = round(score100, 1)
+            m["score_10"] = round(score100 / 10.0, 1)
+            span = max(hi - lo, 1e-3)
+            pad = max(span * 1.8, span + 0.05)
+            m["scale_min"] = round(float(lo - pad), 4)
+            m["scale_max"] = round(float(hi + pad), 4)
 
     for i, m in enumerate(out):
         m["order"] = i + 1

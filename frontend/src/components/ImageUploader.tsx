@@ -4,22 +4,34 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, ImagePlus, Loader2, Upload, X } from "lucide-react";
 import { motion } from "framer-motion";
 import { validateImageFile } from "@/lib/api";
+import type { Gender } from "@/lib/types";
+
+export type AnalyzePayload = {
+  file: File;
+  previewUrl: string;
+  gender: Gender;
+  profileFile: File | null;
+};
 
 interface ImageUploaderProps {
-  onAnalyze: (file: File, previewUrl: string) => Promise<void>;
+  onAnalyze: (payload: AnalyzePayload) => Promise<void>;
   busy?: boolean;
 }
 
 /**
- * Загрузка фото: drag-and-drop, камера, превью.
+ * Загрузка: пол, анфас (обязательно), профиль (опционально).
  */
 export function ImageUploader({ onAnalyze, busy = false }: ImageUploaderProps) {
+  const [gender, setGender] = useState<Gender>("male");
   const [preview, setPreview] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [profilePreview, setProfilePreview] = useState<string | null>(null);
+  const [profileFile, setProfileFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const profileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -33,6 +45,21 @@ export function ImageUploader({ onAnalyze, busy = false }: ImageUploaderProps) {
     setFile(next);
     const url = URL.createObjectURL(next);
     setPreview((prev) => {
+      if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+      return url;
+    });
+  }, []);
+
+  const applyProfileFile = useCallback((next: File) => {
+    const validationError = validateImageFile(next);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    setError(null);
+    setProfileFile(next);
+    const url = URL.createObjectURL(next);
+    setProfilePreview((prev) => {
       if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
       return url;
     });
@@ -109,8 +136,39 @@ export function ImageUploader({ onAnalyze, busy = false }: ImageUploaderProps) {
     setError(null);
   };
 
+  const clearProfile = () => {
+    setProfileFile(null);
+    setProfilePreview((prev) => {
+      if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+      return null;
+    });
+  };
+
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        <span className="text-xs uppercase tracking-wider text-white/45">Пол</span>
+        {(
+          [
+            ["male", "Мужчина"],
+            ["female", "Женщина"],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setGender(value)}
+            className={`rounded-full px-4 py-1.5 text-sm transition ${
+              gender === value
+                ? "bg-violet-500 text-white"
+                : "border border-white/15 bg-white/5 text-white/70 hover:bg-white/10"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       <div
         onDragOver={(e) => {
           e.preventDefault();
@@ -124,18 +182,20 @@ export function ImageUploader({ onAnalyze, busy = false }: ImageUploaderProps) {
             : "border-white/15 bg-white/[0.03]"
         }`}
       >
+        <p className="mb-3 text-center text-xs uppercase tracking-wider text-white/40">
+          Анфас (обязательно)
+        </p>
         {!preview && !cameraOpen && (
-          <div className="flex flex-col items-center gap-4 py-10 text-center">
+          <div className="flex flex-col items-center gap-4 py-8 text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br from-violet-500/30 to-sky-500/30">
               <ImagePlus className="h-7 w-7 text-violet-200" />
             </div>
             <div>
               <p className="font-[family-name:var(--font-display)] text-2xl text-white">
-                Перетащите фото лица
+                Перетащите фото анфас
               </p>
               <p className="mt-2 max-w-md text-sm text-white/50">
-                Лучше всего анфас или чистый профиль при ровном свете. JPEG, PNG,
-                WEBP или BMP до 12 МБ.
+                Ровный свет, лицо прямо в камеру. JPEG, PNG, WEBP или BMP до 12 МБ.
               </p>
             </div>
             <div className="flex flex-wrap items-center justify-center gap-3">
@@ -192,7 +252,7 @@ export function ImageUploader({ onAnalyze, busy = false }: ImageUploaderProps) {
               initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
               src={preview}
-              alt="Превью выбранного фото"
+              alt="Превью анфас"
               className="mx-auto max-h-[460px] rounded-3xl object-contain"
             />
             <button
@@ -218,6 +278,54 @@ export function ImageUploader({ onAnalyze, busy = false }: ImageUploaderProps) {
         />
       </div>
 
+      <div className="rounded-[2rem] border border-dashed border-white/15 bg-white/[0.03] p-5">
+        <p className="mb-3 text-center text-xs uppercase tracking-wider text-white/40">
+          Профиль (опционально)
+        </p>
+        {!profilePreview ? (
+          <div className="flex flex-col items-center gap-3 py-4 text-center">
+            <p className="max-w-sm text-sm text-white/50">
+              Отдельное фото строго в профиль — для настоящего profile score.
+              Без него профиль не оценивается.
+            </p>
+            <button
+              type="button"
+              onClick={() => profileInputRef.current?.click()}
+              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-5 py-2.5 text-sm text-white transition hover:bg-white/10"
+            >
+              <Upload className="h-4 w-4" />
+              Добавить профиль
+            </button>
+          </div>
+        ) : (
+          <div className="relative">
+            <img
+              src={profilePreview}
+              alt="Превью профиль"
+              className="mx-auto max-h-[280px] rounded-3xl object-contain"
+            />
+            <button
+              type="button"
+              onClick={clearProfile}
+              className="absolute right-3 top-3 rounded-full border border-white/15 bg-black/50 p-2 text-white backdrop-blur"
+              aria-label="Убрать профиль"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+        <input
+          ref={profileInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/bmp"
+          className="hidden"
+          onChange={(e) => {
+            const selected = e.target.files?.[0];
+            if (selected) applyProfileFile(selected);
+          }}
+        />
+      </div>
+
       {error && (
         <p className="rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
           {error}
@@ -230,7 +338,12 @@ export function ImageUploader({ onAnalyze, busy = false }: ImageUploaderProps) {
         onClick={async () => {
           if (!file || !preview) return;
           try {
-            await onAnalyze(file, preview);
+            await onAnalyze({
+              file,
+              previewUrl: preview,
+              gender,
+              profileFile,
+            });
           } catch (err) {
             setError(err instanceof Error ? err.message : "Ошибка анализа.");
           }
