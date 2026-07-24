@@ -607,11 +607,12 @@ class MetricsCalculator:
             }
 
         # Men: wider / more square jaw; women: stronger V-taper.
-        jaw_ideal = 0.86 if self.gender == "male" else 0.78
+        # Soften sigma — elite faces often sit ~0.80–0.88 jaw/cheek.
+        jaw_ideal = 0.84 if self.gender == "male" else 0.78
         score = combine_scores(
             [
-                (soft_score(jaw_cheek, jaw_ideal, 0.07), 0.65),
-                (soft_score(jaw_depth, 0.31, 0.07), 0.35),
+                (soft_score(jaw_cheek, jaw_ideal, 0.10), 0.65),
+                (soft_score(jaw_depth, 0.33, 0.10), 0.35),
             ]
         )
         return {
@@ -627,16 +628,27 @@ class MetricsCalculator:
     def chin_score(self) -> dict[str, Any]:
         """Chin share, projection, taper, and midline centering in face frame."""
         _, hair_v = self.axes.to_face(*self.hairline_xy)
+        _, brow_v = self.face("glabella")
         _, nose_v = self.face("nose_bottom")
         chin_u, chin_v = self.face("chin")
         mouth_v = (self.face("mouth_left")[1] + self.face("mouth_right")[1]) / 2.0
 
-        face_h = abs(chin_v - hair_v)
+        # Tight crop often puts the estimated hairline above the frame →
+        # inflated face_h and broken chin_share. Fall back to brow-based height.
+        hair_y_img = self.hairline_xy[1]
+        chin_y_img = self.px("chin")[1]
+        tight = hair_y_img < 0.08 * self.height or chin_y_img > 0.92 * self.height
+        if tight:
+            face_h = abs(chin_v - brow_v) / 0.68  # brow→chin ≈ 68% of trichion→chin
+        else:
+            face_h = abs(chin_v - hair_v)
+
         chin_share = abs(chin_v - nose_v) / face_h if face_h > 1e-3 else 0.33
-        # Longer menton projection (mouth→chin vs nose→mouth) = stronger chin.
+        # Longer menton (mouth→chin vs nose→mouth). Male models often ~2.2–3.0.
         projection = abs(chin_v - mouth_v) / max(abs(mouth_v - nose_v), 1e-3)
+        proj_ideal = 2.45 if self.gender == "male" else 2.15
+        proj_sigma = 0.65 if self.gender == "male" else 0.55
         cheek_w = abs(self.face("right_cheek")[0] - self.face("left_cheek")[0])
-        # Soft taper: chin landmarks 176/400 vs cheek width.
         chin_left = self.face_index(176) if len(self.landmarks) > 400 else (chin_u - cheek_w * 0.17, chin_v)
         chin_right = self.face_index(400) if len(self.landmarks) > 400 else (chin_u + cheek_w * 0.17, chin_v)
         chin_w = abs(chin_right[0] - chin_left[0])
@@ -645,16 +657,19 @@ class MetricsCalculator:
 
         score = combine_scores(
             [
-                (soft_score(chin_share, 0.31, 0.06), 0.25),
-                (soft_score(projection, 2.05, 0.45), 0.40),
-                (soft_score(chin_taper, 0.34, 0.08), 0.20),
+                (soft_score(chin_share, 0.33, 0.08), 0.22),
+                (soft_score(projection, proj_ideal, proj_sigma), 0.43),
+                (soft_score(chin_taper, 0.34, 0.09), 0.20),
                 (center_pen, 0.15),
             ]
         )
         return {
             "score": round(score, 1),
             "label": "Подбородок",
-            "explanation": "Доля нижней трети, проекция и сужение подбородка по оси лица.",
+            "explanation": (
+                "Доля нижней трети, проекция и сужение подбородка по оси лица."
+                + (" Tight-crop: высота лица оценена от бровей." if tight else "")
+            ),
             "ratio": round(projection, 4),
         }
 

@@ -782,7 +782,8 @@ def build_detailed_measurements(
 
     intercanthal = _distance(eye_li, eye_ri)
     mean_eye_w = (le_w + re_w) / 2.0
-    # FaceIQ «One Eye Apart»: intercanthal ÷ one eye width. Ideal ≈ 0.9–1.0.
+    # MediaPipe palpebral width runs shorter than visual "eye width", so real
+    # photos land ~1.1–1.3× more often than the classical 1.0 canon.
     eye_spacing = intercanthal / max(mean_eye_w, 1e-3)
     out.append(
         _pack(
@@ -791,11 +792,11 @@ def build_detailed_measurements(
             category="глаза",
             value=eye_spacing,
             unit="x",
-            ideal_min=0.90,
-            ideal_max=1.05,
+            ideal_min=1.05,
+            ideal_max=1.28,
             explanation=(
-                "One Eye Apart (FaceIQ): межкантальное ≈ одной ширине глаза. "
-                "Идеал 0.90–1.05 (пик ~0.97)."
+                "One Eye Apart: межкантальное ÷ ширина глазной щели (MediaPipe). "
+                "На фото типичный баланс ≈ 1.05–1.28 (пик ~1.15), не жёсткие 0.9–1.05."
             ),
             points=[
                 _pt(calc, "li", eye_li, "anchor", 133),
@@ -808,8 +809,8 @@ def build_detailed_measurements(
                 _seg(calc, eye_li, eye_lo, style="ref"),
             ],
             formula={"type": "ratio_hw", "h1": "li", "h2": "ri", "v1": "li", "v2": "lo", "as_ratio": True},
-            soft_margin=0.18,
-            scale_pad=0.25,
+            soft_margin=0.16,
+            scale_pad=0.35,
         )
     )
 
@@ -1505,13 +1506,21 @@ def build_detailed_measurements(
         )
     )
 
-    # FaceIQ «Lower Third Proportion»: (nose→mouth) / (nose→chin). Ideal 31–33.5%.
-    # NOT the same as facial lower-third % of full face height.
+    # FaceIQ «Lower Third Proportion»: (nose→mouth) / (nose→chin).
+    # MediaPipe mouth sits a bit high vs clinical soft-tissue; real faces often
+    # land ~25–35%. Keep a wider band so long-chin model faces aren't zeroed.
     mouth_mid = _midpoint(mouth_l, mouth_r)
     _, mouth_v = calc.axes.to_face(*mouth_mid)
     nose_to_mouth = abs(mouth_v - nose_v)
     nose_to_chin = max(abs(cv - nose_v), 1e-3)
     lower_prop = 100.0 * nose_to_mouth / nose_to_chin
+    # Tight headshot: chin landmark often drops into neck → artificially low %.
+    chin_y_img = chin_pt[1]
+    tight_crop = bool(
+        calc.hairline_xy[1] < 0.08 * calc.height or chin_y_img > 0.92 * calc.height
+    )
+    lower_ideal = (24.0, 36.0)
+    lower_soft = 6.0 if tight_crop else 5.0
     out.append(
         _pack(
             mid="lower_face_total",
@@ -1519,11 +1528,12 @@ def build_detailed_measurements(
             category="челюсть",
             value=lower_prop,
             unit="%",
-            ideal_min=31.0,
-            ideal_max=33.5,
+            ideal_min=lower_ideal[0],
+            ideal_max=lower_ideal[1],
             explanation=(
-                "FaceIQ: (нос→рот) / (нос→подбородок). Идеал 31–33.5%. "
-                "Не путать с нижней третью всего лица (~33–38%)."
+                "FaceIQ-стиль: (нос→рот) / (нос→подбородок). Рабочий идеал ≈ 24–36% "
+                f"(на tight-crop мягче). Сейчас {lower_prop:.1f}%."
+                + (" Кадр обрезан — метрика менее надёжна." if tight_crop else "")
             ),
             points=[
                 _pt(calc, "nose", nose_pt, "anchor", 2),
@@ -1535,15 +1545,17 @@ def build_detailed_measurements(
                 _seg(calc, nose_pt, mouth_mid, style="primary", label=f"{lower_prop:.1f}%"),
             ],
             formula={"type": "pct_ratio", "num": ["nose", "mouth"], "den": ["nose", "chin"]},
-            soft_margin=3.0,
-            scale_pad=5.0,
+            soft_margin=lower_soft,
+            scale_pad=8.0,
         )
     )
 
-    # Cheek vertical position within midface (eye → nose), NOT hairline→chin.
-    # High cheekbones ≈ 18–28% of the eye–nose span (matches aesthetics.cheek_pos).
+    # Cheek vertical position: prefer upper zygoma (116/345) over low cheek mass (234/454).
     eye_v = (calc.face("left_eye_outer")[1] + calc.face("right_eye_outer")[1]) / 2.0
     midface_span = max(nose_v - eye_v, 1e-3)
+    cheek_v_wide = (calc.face("left_cheek")[1] + calc.face("right_cheek")[1]) / 2.0
+    cheek_v_up = (calc.face_index(116)[1] + calc.face_index(345)[1]) / 2.0
+    cheek_v = 0.65 * cheek_v_up + 0.35 * cheek_v_wide
     cheek_pos_mid = (cheek_v - eye_v) / midface_span
     cheek_pos_pct = 100.0 * cheek_pos_mid
     out.append(
@@ -1553,15 +1565,17 @@ def build_detailed_measurements(
             category="скулы",
             value=cheek_pos_pct,
             unit="%",
-            ideal_min=18.0,
-            ideal_max=28.0,
+            ideal_min=16.0,
+            ideal_max=42.0,
             explanation=(
-                "Положение скул в зоне глаз→нос (меньше % = выше к глазам). "
-                "Идеал высоких скул ≈ 18–28%."
+                "Высота скул в зоне глаз→нос (меньше % = выше). "
+                "Смесь upper-zygoma + cheek landmark; идеал ≈ 16–42%."
             ),
             points=[
                 _pt(calc, "lc", left_cheek, "anchor", 234),
                 _pt(calc, "rc", right_cheek, "anchor", 454),
+                _pt(calc, "lu", calc.px_index(116), "ref", 116),
+                _pt(calc, "ru", calc.px_index(345), "ref", 345),
                 _pt(calc, "lo", calc.px("left_eye_outer"), "ref", 33),
                 _pt(calc, "nb", nose_bottom, "ref", 2),
             ],
@@ -1570,7 +1584,8 @@ def build_detailed_measurements(
                 _seg(calc, left_cheek, right_cheek, style="primary", label=f"{cheek_pos_pct:.1f}%"),
             ],
             formula={"type": "cheek_pos"},
-            soft_margin=10.0,
+            soft_margin=12.0,
+            scale_pad=20.0,
         )
     )
 

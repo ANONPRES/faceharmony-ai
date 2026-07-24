@@ -119,16 +119,18 @@ def cheekbone_score(calc: Any) -> dict[str, Any]:
 
     eye_v = (calc.face("left_eye_outer")[1] + calc.face("right_eye_outer")[1]) / 2.0
     nose_v = calc.face("nose_bottom")[1]
-    cheek_v = (calc.face("left_cheek")[1] + calc.face("right_cheek")[1]) / 2.0
+    # Prefer upper zygoma (116/345); MediaPipe 234/454 often sits too low on fuller faces.
+    cheek_v_wide = (calc.face("left_cheek")[1] + calc.face("right_cheek")[1]) / 2.0
+    cheek_v_up = (calc.face_index(116)[1] + calc.face_index(345)[1]) / 2.0
+    cheek_v = 0.65 * cheek_v_up + 0.35 * cheek_v_wide
     span = max(nose_v - eye_v, 1e-3)
     cheek_pos = (cheek_v - eye_v) / span
-    # High / sculpted cheekbones sit early in the eye→nose span (~0.18–0.28).
-    # Softer / lower cheek mass (higher cheek_pos) falls off steeply.
-    if cheek_pos <= 0.28:
-        height_score = soft_score(cheek_pos, 0.22, 0.09)
+    # High cheekbones ~0.18–0.35 of eye→nose; softer faces can sit ~0.40–0.48.
+    if cheek_pos <= 0.36:
+        height_score = soft_score(cheek_pos, 0.26, 0.12)
     else:
         height_score = float(
-            np.clip(100.0 * np.exp(-(((cheek_pos - 0.28) / 0.055) ** 2)), 0.0, 100.0)
+            np.clip(100.0 * np.exp(-(((cheek_pos - 0.36) / 0.12) ** 2)), 0.0, 100.0)
         )
 
     width_score = combine_scores(
@@ -159,10 +161,12 @@ def cheekbone_score(calc: Any) -> dict[str, Any]:
         ]
     )
 
-    if cheek_pos <= 0.28 and cheek_jaw >= 1.10:
+    if cheek_pos <= 0.32 and cheek_jaw >= 1.10:
         note = "высокие скулы с заметным расширением относительно челюсти"
-    elif cheek_pos <= 0.28:
+    elif cheek_pos <= 0.32:
         note = "скулы посажены высоко (ближе к линии глаз)"
+    elif cheek_pos <= 0.42 and cheek_jaw >= 1.08:
+        note = "скулы шире челюсти — читается более «скульптурная» ширина"
     elif cheek_jaw >= 1.08:
         note = "скулы шире челюсти — читается более «скульптурная» ширина"
     elif cheek_jaw <= 0.98:
