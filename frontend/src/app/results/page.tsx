@@ -60,7 +60,7 @@ function ResultsContent() {
   const cards = useMemo(() => {
     if (!result) return [];
     const order = [
-      "appeal",
+      "harmony",
       "cheekbones",
       "eye_cut",
       "nose",
@@ -106,7 +106,7 @@ function ResultsContent() {
       ? "Профиль: оценка по силуэту (нос, подбородок, челюсть), не по ширинам анфаса."
       : result.pose === "three_quarter"
         ? "Ракурс ¾: часть метрик менее надёжна — лучше строгое анфас + отдельный профиль."
-        : "Overall = H30% / D30% / A25% / F15% (PSL) + looks-penalty. Слабое звено тянет вниз.";
+        : "Overall = FaceIQ Harmony (анфас). Angularity / Dimorphism / Features — скоро, как на FaceIQ.";
 
   return (
     <div className="space-y-8">
@@ -131,11 +131,11 @@ function ResultsContent() {
 
       <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
         <GlassCard className="flex flex-col items-center justify-center gap-6">
-          <ScoreRing score={result.overall} label="Общая гармония" />
+          <ScoreRing score={result.overall} label="Harmony" />
           {typeof result.appeal_10 === "number" && (
             <div className="text-center">
               <div className="text-[11px] uppercase tracking-wider text-amber-200/70">
-                Appeal
+                Harmony
               </div>
               <div className="mt-1 font-[family-name:var(--font-display)] text-3xl text-amber-100">
                 {result.appeal_10.toFixed(1)}
@@ -144,34 +144,35 @@ function ResultsContent() {
             </div>
           )}
 
-          {(result.pillars || result.harmony != null) && (
-            <div className="grid w-full max-w-md grid-cols-2 gap-2">
-              {(
-                [
-                  ["Harmony", result.pillars?.harmony ?? result.harmony],
-                  ["Angularity", result.pillars?.angularity ?? result.angularity],
-                  ["Dimorphism", result.pillars?.dimorphism ?? result.dimorphism],
-                  [
-                    "Features",
-                    result.pillars?.features ?? result.features_pillar,
-                  ],
-                ] as const
-              ).map(([label, value]) => (
-                <div
-                  key={label}
-                  className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-center"
-                >
-                  <div className="text-[10px] uppercase tracking-wider text-white/45">
-                    {label}
-                  </div>
-                  <div className="mt-0.5 font-[family-name:var(--font-display)] text-lg text-white">
-                    {typeof value === "number" ? (value / 10).toFixed(1) : "—"}
-                    <span className="text-xs text-white/35">/10</span>
-                  </div>
+          <div className="grid w-full max-w-md grid-cols-2 gap-2">
+            {(
+              [
+                ["Harmony", result.pillars?.harmony ?? result.harmony],
+                ["Angularity", null],
+                ["Dimorphism", null],
+                ["Features", null],
+              ] as const
+            ).map(([label, value]) => (
+              <div
+                key={label}
+                className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-center"
+              >
+                <div className="text-[10px] uppercase tracking-wider text-white/45">
+                  {label}
                 </div>
-              ))}
-            </div>
-          )}
+                <div className="mt-0.5 font-[family-name:var(--font-display)] text-lg text-white">
+                  {typeof value === "number" ? (
+                    <>
+                      {(value / 10).toFixed(1)}
+                      <span className="text-xs text-white/35">/10</span>
+                    </>
+                  ) : (
+                    <span className="text-sm text-white/35">скоро</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
           <div className="flex flex-wrap items-center justify-center gap-2">
             <span className="rounded-full border border-violet-300/30 bg-violet-500/15 px-3 py-1 text-xs text-violet-100">
               {result.pose_label}

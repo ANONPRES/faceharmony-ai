@@ -743,8 +743,9 @@ def build_detailed_measurements(
         )
     )
 
-    # Eyes — MediaPipe canthi under-read Lateral Canthal Tilt vs FaceIQ manual
-    # landmarks (~2.5° on Sean: MP 5.0° vs FaceIQ 7.6°). Apply fixed bias.
+    # Eyes — Lateral Canthal Tilt vs intercanthal axis (MediaPipe).
+    # No fixed FaceIQ offset: Sean ~5°, Martini ~5–8° depending on crop;
+    # FaceIQ manual canthi differ by photo (Sean 7.6°, Martini 4.8°).
     eye_li = calc.px("left_eye_inner")
     eye_lo = calc.px("left_eye_outer")
     eye_ri = calc.px("right_eye_inner")
@@ -753,7 +754,6 @@ def build_detailed_measurements(
         _tilt_deg(eye_li, eye_lo, ref_u, up)
         + _tilt_deg(eye_ri, eye_ro, ref_u, up)
     ) / 2.0
-    mean_tilt = float(mean_tilt + 2.5)  # FaceIQ calibration offset
     out.append(
         _pack(
             mid="canthal_tilt",
@@ -761,11 +761,11 @@ def build_detailed_measurements(
             category="глаза",
             value=mean_tilt,
             unit="°",
-            ideal_min=6.0,
-            ideal_max=7.7,
+            ideal_min=4.5,
+            ideal_max=8.0,
             explanation=(
-                "FaceIQ Lateral Canthal Tilt: внешний угол выше внутреннего. "
-                "Ideal 6.0–7.7° (Sean 7.6° → 10/10)."
+                "FaceIQ Lateral Canthal Tilt (vs eye line). "
+                "Ideal ~4.5–8° (Sean FIQ 7.6°→10; Martini FIQ 4.8°→8.9)."
             ),
             points=[
                 _pt(calc, "li", eye_li, "anchor", 133),
@@ -778,7 +778,7 @@ def build_detailed_measurements(
                 _seg(calc, eye_ri, eye_ro, style="primary"),
             ],
             formula={"type": "canthal_tilt"},
-            soft_margin=2.2,
+            soft_margin=2.8,
             scale_pad=4.0,
         )
     )
@@ -832,10 +832,10 @@ def build_detailed_measurements(
             value=eye_spacing,
             unit="x",
             ideal_min=0.90,
-            ideal_max=1.00,
+            ideal_max=1.05,
             explanation=(
                 "FaceIQ One Eye Apart: межкантальное ÷ ширина глазной щели. "
-                "Ideal 0.9–1.0 (Sean 1.16× → 2.8/10)."
+                "Ideal 0.9–1.05 (Sean 1.16× → 2.8/10; Martini 0.88× → 7.0/10)."
             ),
             points=[
                 _pt(calc, "li", eye_li, "anchor", 133),
@@ -848,7 +848,7 @@ def build_detailed_measurements(
                 _seg(calc, eye_li, eye_lo, style="ref"),
             ],
             formula={"type": "ratio_hw", "h1": "li", "h2": "ri", "v1": "li", "v2": "lo", "as_ratio": True},
-            soft_margin=0.13,
+            soft_margin=0.12,
             scale_pad=0.35,
         )
     )

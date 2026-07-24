@@ -151,7 +151,6 @@ class MetricsCalculator:
             as_profile_view: When True, treat this calculator as the dedicated
                 profile photo and score via silhouette metrics (not frontal widths).
         """
-        from .appeal import appeal_score
         from .profile_silhouette import build_profile_silhouette_scores
 
         # Dedicated profile upload: force profile pose so feature branches
@@ -266,35 +265,52 @@ class MetricsCalculator:
 
         score_values = {key: float(metric_map[key]["score"]) for key in metric_map}
 
-        from .pillars import (
-            compute_pillars,
-            overall_from_pillars,
-            pack_pillar_metrics,
-        )
+        # FaceIQ mode: Harmony only (A/D/F / Overall Coming Soon on FaceIQ).
+        # Build frontal measurements first, then Harmony from ratio scores.
+        measurements = build_detailed_measurements(self, gender=self.gender)
+        if as_profile_view:
+            from .profile_silhouette import build_profile_ceph_measurements
 
-        pillars = compute_pillars(score_values, self.gender)  # type: ignore[arg-type]
-        for key, detail in pack_pillar_metrics(pillars).items():
-            metric_map[key] = detail
-            score_values[key] = float(detail["score"])
+            ceph_rows = build_profile_ceph_measurements(self)
+            if ceph_rows:
+                frontal_only = [m for m in measurements if m.get("view") != "profile"]
+                measurements = frontal_only + ceph_rows
 
-        appeal = appeal_score(score_values, self.gender, pillars=pillars)  # type: ignore[arg-type]
-        metric_map["appeal"] = {
-            "score": appeal["score"],
-            "label": appeal["label"],
-            "explanation": appeal["explanation"],
-            "ratio": appeal["ratio"],
+        from .faceiq_harmony import harmony_from_measurements
+
+        harmony_info = harmony_from_measurements(measurements)
+        harmony_100 = float(harmony_info["score"])
+        harmony_10 = float(harmony_info["score_10"])
+
+        pillars = {
+            "harmony": harmony_100,
+            # FaceIQ: Coming Soon — keep keys for API compat, UI hides them.
+            "angularity": None,
+            "dimorphism": None,
+            "features": None,
         }
-        score_values["appeal"] = float(appeal["score"])
+        metric_map["harmony"] = {
+            "score": round(harmony_100, 1),
+            "label": "Harmony",
+            "explanation": harmony_info["explanation"],
+            "ratio": harmony_10,
+        }
+        score_values["harmony"] = harmony_100
 
-        # Frontal / 3q / profile overall from pillars (rarity curve), not the
-        # old compression that piled everyone into 72–78.
-        pillar_overall = overall_from_pillars(pillars)
-        frontal_overall = pillar_overall
-        three_q_overall = pillar_overall * 0.98  # slight uncertainty on ¾
+        # Appeal temporarily mirrors Harmony /10 (FaceIQ has no separate Appeal).
+        metric_map["appeal"] = {
+            "score": round(harmony_100, 1),
+            "label": "Harmony",
+            "explanation": "Пока = FaceIQ Harmony (столпы A/D/F скоро).",
+            "ratio": harmony_10,
+        }
+        score_values["appeal"] = harmony_100
+
+        frontal_overall = harmony_100
+        three_q_overall = harmony_100 * 0.98
 
         pose = self.pose_info["pose"]
         if as_profile_view:
-            # Profile photo: score from silhouette feature weights, then rarity curve.
             raw_profile = self._weighted_overall(score_values, TRUE_PROFILE_WEIGHTS)
             profile_overall = self._calibrate_overall(raw_profile, score_values, "profile")
             overall = profile_overall
@@ -310,15 +326,6 @@ class MetricsCalculator:
                 profile_score = float(np.clip(round(profile_overall, 1), 0.0, 100.0))
             else:
                 overall = frontal_overall
-        measurements = build_detailed_measurements(self, gender=self.gender)
-        if as_profile_view:
-            from .profile_silhouette import build_profile_ceph_measurements
-
-            # Replace unreliable mesh-based "profile" rows with auto soft-tissue ceph.
-            ceph_rows = build_profile_ceph_measurements(self)
-            if ceph_rows:
-                frontal_only = [m for m in measurements if m.get("view") != "profile"]
-                measurements = frontal_only + ceph_rows
 
         return {
             "overall": float(np.clip(round(overall, 1), 0.0, 100.0)),
@@ -329,13 +336,19 @@ class MetricsCalculator:
             "pose_confidence": float(round(self.pose_info["confidence"], 3)),
             "roll_deg": float(round(self.axes.roll_deg, 2)),
             "gender": self.gender,
-            "appeal": float(appeal["score"]),
-            "appeal_10": float(appeal["score_10"]),
-            "harmony": float(round(pillars["harmony"], 1)),
-            "angularity": float(round(pillars["angularity"], 1)),
-            "dimorphism": float(round(pillars["dimorphism"], 1)),
-            "features_pillar": float(round(pillars["features"], 1)),
-            "pillars": {k: float(round(v, 1)) for k, v in pillars.items()},
+            "appeal": float(round(harmony_100, 1)),
+            "appeal_10": float(harmony_10),
+            "harmony": float(round(harmony_100, 1)),
+            "angularity": None,
+            "dimorphism": None,
+            "features_pillar": None,
+            "pillars": {
+                "harmony": float(round(harmony_100, 1)),
+                "angularity": None,
+                "dimorphism": None,
+                "features": None,
+            },
+            "harmony_breakdown": harmony_info.get("breakdown", {}),
             "scores": {k: float(round(v, 1)) for k, v in score_values.items()},
             "metrics": metric_map,
             "measurements": measurements,

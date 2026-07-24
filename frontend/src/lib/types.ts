@@ -111,11 +111,12 @@ export interface AnalysisResult {
   dimorphism?: number;
   features_pillar?: number;
   pillars?: {
-    harmony: number;
-    angularity: number;
-    dimorphism: number;
-    features: number;
+    harmony?: number | null;
+    angularity?: number | null;
+    dimorphism?: number | null;
+    features?: number | null;
   };
+  harmony_breakdown?: Record<string, number>;
   pose: FacePose;
   pose_label: string;
   pose_confidence: number;

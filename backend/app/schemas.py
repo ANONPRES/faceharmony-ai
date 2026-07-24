@@ -97,10 +97,11 @@ class AnalysisResponse(BaseModel):
     appeal: float = 0.0
     appeal_10: float = 0.0
     harmony: float = 0.0
-    angularity: float = 0.0
-    dimorphism: float = 0.0
-    features_pillar: float = 0.0
-    pillars: dict[str, float] = Field(default_factory=dict)
+    angularity: float | None = None
+    dimorphism: float | None = None
+    features_pillar: float | None = None
+    pillars: dict[str, float | None] = Field(default_factory=dict)
+    harmony_breakdown: dict[str, float] = Field(default_factory=dict)
     pose: Literal["frontal", "three_quarter", "profile"]
     pose_label: str
     pose_confidence: float

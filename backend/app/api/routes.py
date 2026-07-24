@@ -79,12 +79,11 @@ def _to_response(
         appeal=float(result.get("appeal") or scores.get("appeal") or 0.0),
         appeal_10=float(result.get("appeal_10") or 0.0),
         harmony=float(result.get("harmony") or scores.get("harmony") or 0.0),
-        angularity=float(result.get("angularity") or scores.get("angularity") or 0.0),
-        dimorphism=float(result.get("dimorphism") or scores.get("dimorphism") or 0.0),
-        features_pillar=float(
-            result.get("features_pillar") or scores.get("features") or 0.0
-        ),
+        angularity=result.get("angularity"),
+        dimorphism=result.get("dimorphism"),
+        features_pillar=result.get("features_pillar"),
         pillars=dict(result.get("pillars") or {}),
+        harmony_breakdown=dict(result.get("harmony_breakdown") or {}),
         pose=result["pose"],
         pose_label=result["pose_label"],
         pose_confidence=result["pose_confidence"],

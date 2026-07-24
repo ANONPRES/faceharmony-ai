@@ -14,9 +14,9 @@ FACEIQ_IDEALS: dict[str, tuple[float, float]] = {
     "mid_third": (31.4, 33.4),
     "lower_third": (33.9, 37.0),
     # Eyes
-    "eye_spacing": (0.90, 1.00),  # One Eye Apart Test
+    "eye_spacing": (0.90, 1.05),  # One Eye Apart Test (FaceIQ band)
     "eye_aspect": (3.0, 3.5),
-    "canthal_tilt": (6.0, 7.7),  # Lateral Canthal Tilt
+    "canthal_tilt": (4.5, 8.0),  # Lateral Canthal Tilt (wide FaceIQ soft band)
     # Structure
     "jfa": (86.5, 92.5),
     "iaa": (86.5, 92.5),
@@ -32,13 +32,13 @@ FACEIQ_IDEALS: dict[str, tuple[float, float]] = {
 
 # Soft margins calibrated so Sean's FaceIQ *values* land near FaceIQ *scores*.
 FACEIQ_SOFT: dict[str, float] = {
-    "eye_spacing": 0.13,  # 1.16 → ~2.8
+    "eye_spacing": 0.12,  # 1.16 → ~3.0; 1.06 → ~7.8; 0.88 → ~7.3
     "jfa": 12.0,  # 78.9 → ~6.7
     "iaa_jfa_diff": 6.7,  # 10.0 → ~4.2
     "lower_third": 7.0,  # 37.65 → ~9.5
     "upper_third": 2.5,
     "mid_third": 2.5,
-    "canthal_tilt": 2.2,
+    "canthal_tilt": 2.8,
     "face_wh_cheek": 0.10,
     "total_face_wh": 0.05,  # 1.30 → ~7.0 with ideal min 1.31
     "eye_aspect": 0.45,
@@ -46,6 +46,14 @@ FACEIQ_SOFT: dict[str, float] = {
     "mouth_nose_width": 0.12,
     "cheekbone_height": 12.0,
     "iaa": 5.0,
+}
+
+# Celebrity FaceIQ Harmony references (public wiki).
+CELEB_HARMONY: dict[str, dict[str, float]] = {
+    "sean_opry": {"harmony": 8.10, "front": 7.6, "side": 8.9},
+    "corrado_martini": {"harmony": 8.14, "front": 8.7, "side": 7.2},
+    "elias_de_poot": {"harmony": 6.91, "front": 6.7, "side": 7.3},
+    "martin_garrix": {"harmony": 6.93, "front": 6.5, "side": 7.6},
 }
 
 # Sean O'Pry published FaceIQ numbers (for regression / comparison).

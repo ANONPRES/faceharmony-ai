@@ -21,22 +21,13 @@ interface MetricsChartProps {
 export function MetricsChart({ result }: MetricsChartProps) {
   const data = [
     { metric: "Harmony", score: result.pillars?.harmony ?? result.harmony ?? 0 },
-    {
-      metric: "Angularity",
-      score: result.pillars?.angularity ?? result.angularity ?? 0,
-    },
-    {
-      metric: "Dimorphism",
-      score: result.pillars?.dimorphism ?? result.dimorphism ?? 0,
-    },
-    {
-      metric: "Features",
-      score: result.pillars?.features ?? result.features_pillar ?? 0,
-    },
-    { metric: "Appeal", score: result.appeal ?? result.metrics.appeal?.score ?? 0 },
     { metric: "Скулы", score: result.cheekbones ?? result.metrics.cheekbones?.score ?? 0 },
     { metric: "Вырез", score: result.eye_cut ?? result.metrics.eye_cut?.score ?? 0 },
+    { metric: "Нос", score: result.nose },
     { metric: "Челюсть", score: result.jaw },
+    { metric: "Подбородок", score: result.chin },
+    { metric: "Симметрия", score: result.symmetry },
+    { metric: "Трети", score: result.thirds },
   ];
 
   return (
