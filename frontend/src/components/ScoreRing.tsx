@@ -14,7 +14,8 @@ interface ScoreRingProps {
  */
 export function ScoreRing({ score, size = 220, label = "Общая гармония" }: ScoreRingProps) {
   const progress = useMotionValue(0);
-  const rounded = useTransform(progress, (v) => Math.round(v));
+  // One decimal — do not Math.round to a fake 100 when backend is 99.0/99.5.
+  const display = useTransform(progress, (v) => (Math.round(v * 10) / 10).toFixed(1));
   const radius = (size - 18) / 2;
   const circumference = 2 * Math.PI * radius;
 
@@ -63,7 +64,7 @@ export function ScoreRing({ score, size = 220, label = "Общая гармон�
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
         <motion.span className="font-[family-name:var(--font-display)] text-5xl text-white sm:text-6xl">
-          {rounded}
+          {display}
         </motion.span>
         <span className="mt-1 text-sm text-white/50">/ 100</span>
         <span className="mt-2 text-xs uppercase tracking-[0.2em] text-violet-200/80">

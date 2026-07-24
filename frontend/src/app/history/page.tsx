@@ -144,7 +144,7 @@ export default function HistoryPage() {
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="font-[family-name:var(--font-display)] text-2xl text-white">
-                      {Math.round(entry.result.overall)}
+                      {Number(entry.result.overall).toFixed(1)}
                       <span className="text-sm text-white/40"> / 100</span>
                     </div>
                     <div className="mt-1 text-xs text-violet-200/80">{poseLabel}</div>
@@ -167,13 +167,14 @@ export default function HistoryPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-center text-[11px] text-white/55">
                   <div className="rounded-xl bg-white/5 py-1.5">
-                    анфас {Math.round(entry.result.frontal_score ?? entry.result.overall)}
+                    анфас{" "}
+                    {Number(entry.result.frontal_score ?? entry.result.overall).toFixed(1)}
                   </div>
                   <div className="rounded-xl bg-white/5 py-1.5">
                     профиль{" "}
                     {entry.result.profile_score == null
                       ? "—"
-                      : Math.round(entry.result.profile_score)}
+                      : Number(entry.result.profile_score).toFixed(1)}
                   </div>
                 </div>
                 <div className="flex gap-2">

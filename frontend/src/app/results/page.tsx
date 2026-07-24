@@ -106,7 +106,7 @@ function ResultsContent() {
       ? "Профиль: оценка по силуэту (нос, подбородок, челюсть), не по ширинам анфаса."
       : result.pose === "three_quarter"
         ? "Ракурс ¾: часть метрик менее надёжна — лучше строгое анфас + отдельный профиль."
-        : "Overall = 4 столпа (Harmony / Angularity / Dimorphism / Features). Слабое звено тянет вниз.";
+        : "Overall = H30% / D30% / A25% / F15% (PSL) + looks-penalty. Слабое звено тянет вниз.";
 
   return (
     <div className="space-y-8">
@@ -193,7 +193,7 @@ function ResultsContent() {
                 Анфас
               </div>
               <div className="mt-1 font-[family-name:var(--font-display)] text-3xl text-white">
-                {Math.round(result.frontal_score)}
+                {Number(result.frontal_score).toFixed(1)}
               </div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-center">
@@ -203,7 +203,7 @@ function ResultsContent() {
               <div className="mt-1 font-[family-name:var(--font-display)] text-3xl text-white">
                 {result.profile_score == null
                   ? "—"
-                  : Math.round(result.profile_score)}
+                  : Number(result.profile_score).toFixed(1)}
               </div>
               {result.profile_score == null && (
                 <p className="mt-1 text-[10px] text-white/35">нет фото профиля</p>
