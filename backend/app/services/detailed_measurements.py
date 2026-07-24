@@ -375,8 +375,8 @@ def build_detailed_measurements(
                 "a": ["lo", "tip", "ro"],
                 "b": ["jl", "apex", "jr"],
             },
-            # FaceIQ Elias 10.6° → 3.9/10; Sean 10° → 4.2/10.
-            soft_margin=7.0,
+            # FaceIQ Sean 10° → 4.2/10; Elias 10.6° → 3.9/10.
+            soft_margin=6.7,
             scale_pad=10.0,
         )
     )
@@ -436,7 +436,7 @@ def build_detailed_measurements(
                 _seg(calc, jfa_rg, jfa_apex, style="primary", label=f"{jfa:.1f}°"),
             ],
             formula={"type": "jfa_intersect", "left": ["jl", "jm"], "right": ["jr", "jrm"]},
-            # Calibrated to FaceIQ: ~79° ≈ 6.7/10 (Sean O'Pry). Scale UI ~80.5–98.5°.
+            # Calibrated to FaceIQ: ~79° ≈ 6.7/10 (Sean O'Pry). Ideal 86.5–92.5°.
             soft_margin=12.0,
             scale_pad=6.0,
         )
@@ -499,15 +499,15 @@ def build_detailed_measurements(
             value=upper_pct,
             unit="%",
             ideal_min=30.0,
-            ideal_max=36.0,
-            explanation="Доля лица от линии роста волос до бровей (glabella). Идеал ≈ 30–36% (FaceIQ ~33%).",
+            ideal_max=32.0,
+            explanation="FaceIQ Top Third: trichion→glabella / face height. Ideal 30–32%.",
             points=midline,
             segments=[
                 _seg(calc, hair_pt, chin_pt, style="ref"),
                 _seg(calc, hair_pt, brow_pt, style="primary", label=f"{upper_pct:.1f}%"),
             ],
             formula={"type": "thirds_segment", "segment": "upper"},
-            soft_margin=5.0,
+            soft_margin=2.5,
         )
     )
 
@@ -518,16 +518,16 @@ def build_detailed_measurements(
             category="трети",
             value=mid_pct,
             unit="%",
-            ideal_min=30.0,
-            ideal_max=36.0,
-            explanation="Доля лица от бровей до основания носа. Идеал ≈ 30–36%.",
+            ideal_min=31.4,
+            ideal_max=33.4,
+            explanation="FaceIQ Middle Third: glabella→subnasale / face height. Ideal 31.4–33.4%.",
             points=midline,
             segments=[
                 _seg(calc, hair_pt, chin_pt, style="ref"),
                 _seg(calc, brow_pt, nose_pt, style="primary", label=f"{mid_pct:.1f}%"),
             ],
             formula={"type": "thirds_segment", "segment": "mid"},
-            soft_margin=5.0,
+            soft_margin=2.5,
         )
     )
 
@@ -538,16 +538,16 @@ def build_detailed_measurements(
             category="трети",
             value=lower_pct,
             unit="%",
-            ideal_min=30.0,
-            ideal_max=36.0,
-            explanation="Доля лица от основания носа до подбородка. Идеал ≈ 30–36%.",
+            ideal_min=33.9,
+            ideal_max=37.0,
+            explanation="FaceIQ Lower Third: subnasale→menton / face height. Ideal 33.9–37%.",
             points=midline,
             segments=[
                 _seg(calc, hair_pt, chin_pt, style="ref"),
                 _seg(calc, nose_pt, chin_pt, style="primary", label=f"{lower_pct:.1f}%"),
             ],
             formula={"type": "thirds_segment", "segment": "lower"},
-            soft_margin=5.0,
+            soft_margin=7.0,
         )
     )
 
@@ -581,36 +581,74 @@ def build_detailed_measurements(
         )
     )
 
-    # FWHR-style: cheek width / midface height (brow → nose). Ideal ≈ 1.96–2.00.
-    # Using brow→chin gives ~1.0 and does not match FaceIQ / competitor ideals.
+    # FaceIQ Face Width-to-Height (midface FWHR): bizygomatic ≈ LM 123/352
+    # over brow→subnasale. Landmark 234/454 is too wide (~2.28 vs Sean 1.99).
+    zygo_l, zygo_r = calc.px_index(123), calc.px_index(352)
+    zygo_w = abs(
+        calc.axes.to_face(*zygo_r)[0] - calc.axes.to_face(*zygo_l)[0]
+    )
     midface_h = max(abs(nose_v - brow_v), 1.0)
-    cheek_to_midface = cheek_w / midface_h
+    cheek_to_midface = zygo_w / midface_h
     out.append(
         _pack(
             mid="face_wh_cheek",
-            label="Ширина/высота лица (скулы)",
+            label="FWHR (Face Width / Midface Height)",
             category="пропорции",
             value=cheek_to_midface,
             unit="x",
-            ideal_min=1.90,
-            ideal_max=2.10,
+            ideal_min=1.92,
+            ideal_max=2.04,
             explanation=(
-                "Ширина по скулам к высоте средней зоны (брови → основание носа). "
-                "Идеал ≈ 1.9–2.1 (FaceIQ FWHR)."
+                "FaceIQ Face Width to Height: ширина скул (zygion 123/352) / "
+                "высота средней зоны (брови → subnasale). Ideal 1.92–2.04 (пик 2.0)."
             ),
             points=[
-                _pt(calc, "lc", left_cheek, "anchor", 234),
-                _pt(calc, "rc", right_cheek, "anchor", 454),
+                _pt(calc, "lc", zygo_l, "anchor", 123),
+                _pt(calc, "rc", zygo_r, "anchor", 352),
                 _pt(calc, "brow", brow, "anchor", 9),
                 _pt(calc, "nb", nose_bottom, "anchor", 2),
             ],
             segments=[
-                _seg(calc, left_cheek, right_cheek, style="primary"),
+                _seg(calc, zygo_l, zygo_r, style="primary"),
                 _seg(calc, brow, nose_bottom, style="primary", label=f"{cheek_to_midface:.2f}x"),
             ],
             formula={"type": "ratio_hw", "h1": "lc", "h2": "rc", "v1": "brow", "v2": "nb"},
-            soft_margin=0.28,
-            scale_pad=0.35,
+            soft_margin=0.10,
+            scale_pad=0.25,
+        )
+    )
+
+    # FaceIQ Total Facial Width to Height: cheek width / (nasion → menton).
+    nasion = calc.px_index(6)
+    _, nasion_v = calc.axes.to_face(*nasion)
+    nasion_chin_h = max(abs(cv - nasion_v), 1.0)
+    total_face_wh = cheek_w / nasion_chin_h
+    out.append(
+        _pack(
+            mid="total_face_wh",
+            label="Total Facial Width / Height",
+            category="пропорции",
+            value=total_face_wh,
+            unit="x",
+            ideal_min=1.31,
+            ideal_max=1.40,
+            explanation=(
+                "FaceIQ Total Facial W/H: bizygomatic (234/454) / nasion→menton. "
+                "Ideal 1.31–1.40 (Sean ≈ 1.30 → 7.0/10)."
+            ),
+            points=[
+                _pt(calc, "lc", left_cheek, "anchor", 234),
+                _pt(calc, "rc", right_cheek, "anchor", 454),
+                _pt(calc, "nasion", nasion, "anchor", 6),
+                _pt(calc, "chin", chin, "anchor", 152),
+            ],
+            segments=[
+                _seg(calc, left_cheek, right_cheek, style="primary"),
+                _seg(calc, nasion, chin, style="primary", label=f"{total_face_wh:.2f}x"),
+            ],
+            formula={"type": "ratio_hw", "h1": "lc", "h2": "rc", "v1": "nasion", "v2": "chin"},
+            soft_margin=0.05,
+            scale_pad=0.20,
         )
     )
 
@@ -705,7 +743,8 @@ def build_detailed_measurements(
         )
     )
 
-    # Eyes — canthal tilt from named landmarks (mix understates tilt ~2° vs FaceIQ ~7°).
+    # Eyes — MediaPipe canthi under-read Lateral Canthal Tilt vs FaceIQ manual
+    # landmarks (~2.5° on Sean: MP 5.0° vs FaceIQ 7.6°). Apply fixed bias.
     eye_li = calc.px("left_eye_inner")
     eye_lo = calc.px("left_eye_outer")
     eye_ri = calc.px("right_eye_inner")
@@ -714,18 +753,19 @@ def build_detailed_measurements(
         _tilt_deg(eye_li, eye_lo, ref_u, up)
         + _tilt_deg(eye_ri, eye_ro, ref_u, up)
     ) / 2.0
+    mean_tilt = float(mean_tilt + 2.5)  # FaceIQ calibration offset
     out.append(
         _pack(
             mid="canthal_tilt",
-            label="Кантальный наклон",
+            label="Lateral Canthal Tilt",
             category="глаза",
             value=mean_tilt,
             unit="°",
-            ideal_min=5.0,
-            ideal_max=8.5,
+            ideal_min=6.0,
+            ideal_max=7.7,
             explanation=(
-                "Positive canthal tilt: внешний угол выше внутреннего. "
-                "Идеал FaceIQ ≈ 5–8.5°."
+                "FaceIQ Lateral Canthal Tilt: внешний угол выше внутреннего. "
+                "Ideal 6.0–7.7° (Sean 7.6° → 10/10)."
             ),
             points=[
                 _pt(calc, "li", eye_li, "anchor", 133),
@@ -738,8 +778,8 @@ def build_detailed_measurements(
                 _seg(calc, eye_ri, eye_ro, style="primary"),
             ],
             formula={"type": "canthal_tilt"},
-            soft_margin=4.0,
-            scale_pad=6.0,
+            soft_margin=2.2,
+            scale_pad=4.0,
         )
     )
 
@@ -782,21 +822,20 @@ def build_detailed_measurements(
 
     intercanthal = _distance(eye_li, eye_ri)
     mean_eye_w = (le_w + re_w) / 2.0
-    # MediaPipe palpebral width runs shorter than visual "eye width", so real
-    # photos land ~1.1–1.3× more often than the classical 1.0 canon.
+    # FaceIQ One Eye Apart Test: intercanthal / mean eye width. Ideal 0.9–1.0.
     eye_spacing = intercanthal / max(mean_eye_w, 1e-3)
     out.append(
         _pack(
             mid="eye_spacing",
-            label="Межглазье / ширина глаза",
+            label="One Eye Apart Test",
             category="глаза",
             value=eye_spacing,
             unit="x",
-            ideal_min=1.05,
-            ideal_max=1.28,
+            ideal_min=0.90,
+            ideal_max=1.00,
             explanation=(
-                "One Eye Apart: межкантальное ÷ ширина глазной щели (MediaPipe). "
-                "На фото типичный баланс ≈ 1.05–1.28 (пик ~1.15), не жёсткие 0.9–1.05."
+                "FaceIQ One Eye Apart: межкантальное ÷ ширина глазной щели. "
+                "Ideal 0.9–1.0 (Sean 1.16× → 2.8/10)."
             ),
             points=[
                 _pt(calc, "li", eye_li, "anchor", 133),
@@ -809,7 +848,7 @@ def build_detailed_measurements(
                 _seg(calc, eye_li, eye_lo, style="ref"),
             ],
             formula={"type": "ratio_hw", "h1": "li", "h2": "ri", "v1": "li", "v2": "lo", "as_ratio": True},
-            soft_margin=0.16,
+            soft_margin=0.13,
             scale_pad=0.35,
         )
     )
@@ -931,9 +970,9 @@ def build_detailed_measurements(
             category="губы",
             value=mouth_nose,
             unit="x",
-            ideal_min=1.38,
+            ideal_min=1.45,
             ideal_max=1.55,
-            explanation="FaceIQ mouth÷nose: идеал ~1.38–1.53 (пик ~1.45). Sean ~1.5 → 10/10.",
+            explanation="FaceIQ Mouth width to nose width. Ideal ~1.45–1.55 (Sean 1.5 → 10/10).",
             points=[
                 _pt(calc, "ml", mouth_l, "anchor", 61),
                 _pt(calc, "mr", mouth_r, "anchor", 291),
@@ -945,8 +984,8 @@ def build_detailed_measurements(
                 _seg(calc, mouth_l, mouth_r, style="primary", label=f"{mouth_nose:.2f}x"),
             ],
             formula={"type": "ratio_hw", "h1": "ml", "h2": "mr", "v1": "nl", "v2": "nr", "as_ratio": True},
-            soft_margin=0.22,
-            scale_pad=0.30,
+            soft_margin=0.12,
+            scale_pad=0.25,
         )
     )
 
@@ -964,13 +1003,13 @@ def build_detailed_measurements(
     out.append(
         _pack(
             mid="lip_ratio",
-            label="Нижняя / верхняя губа",
+            label="Lower / Upper Lip",
             category="губы",
             value=lip_ratio,
             unit="x",
-            ideal_min=1.55,
-            ideal_max=1.85,
-            explanation="Классическая пропорция объёма нижней губы к верхней.",
+            ideal_min=1.30,
+            ideal_max=1.50,
+            explanation="FaceIQ Lower Lip to Upper Lip Ratio. Ideal ~1.3–1.5 (Sean 1.4 → 9.6/10).",
             points=[
                 _pt(calc, "u1", calc.px_index(0), "anchor", 0),
                 _pt(calc, "u2", calc.px_index(13), "anchor", 13),
@@ -982,7 +1021,7 @@ def build_detailed_measurements(
                 _seg(calc, calc.px_index(14), calc.px_index(17), style="primary", label=f"{lip_ratio:.2f}x"),
             ],
             formula={"type": "ratio_hw", "h1": "l1", "h2": "l2", "v1": "u1", "v2": "u2", "as_ratio": True},
-            soft_margin=0.35,
+            soft_margin=0.25,
         )
     )
 

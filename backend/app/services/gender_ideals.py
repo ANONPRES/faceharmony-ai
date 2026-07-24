@@ -13,27 +13,23 @@ Gender = Literal["male", "female"]
 # id -> (ideal_min, ideal_max) overrides
 IDEAL_OVERRIDES: dict[Gender, dict[str, tuple[float, float]]] = {
     "male": {
-        # Sharper / more angular lower third
-        "jfa": (84.0, 90.0),
+        # Keep FaceIQ universal bands for JFA / one-eye-apart / canthal —
+        # gender only shifts truly dimorphic soft-tissue ideals.
         "gonial_angle": (110.0, 125.0),
         "jaw_width_bigonial": (88.0, 93.0),
         "cheek_jaw_ratio": (1.05, 1.12),
         "chin_taper": (0.30, 0.42),
-        "lip_ratio": (1.35, 1.70),
-        "canthal_tilt": (4.0, 8.5),
+        "lip_ratio": (1.30, 1.50),
         "brow_eye_gap": (2.5, 4.8),
         "face_ratio": (0.72, 0.78),
-        "mouth_nose_width": (1.30, 1.50),
+        "mouth_nose_width": (1.45, 1.55),
     },
     "female": {
-        # Softer jaw, fuller lips, slightly more feminine spacing
-        "jfa": (88.0, 96.0),
         "gonial_angle": (118.0, 135.0),
         "jaw_width_bigonial": (84.0, 90.0),
         "cheek_jaw_ratio": (1.10, 1.20),
         "chin_taper": (0.24, 0.36),
-        "lip_ratio": (1.55, 1.95),
-        "canthal_tilt": (5.0, 9.5),
+        "lip_ratio": (1.40, 1.70),
         "brow_eye_gap": (4.0, 6.5),
         "face_ratio": (0.68, 0.75),
         "mouth_nose_width": (1.40, 1.60),
